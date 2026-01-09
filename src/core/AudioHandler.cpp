@@ -355,8 +355,9 @@ bool AudioHandler::saveLyrics(const std::string& filepath, const std::string& ly
 }
 
 int AudioHandler::checkCoverStatus(const std::vector<unsigned char>& imageData) {
-    // Simple check - would need image library to check dimensions properly
-    // For now, just return 1 if exists
+    // Check if cover exists
+    // TODO: Could use QImage to check dimensions for status 2 (500x500)
+    // For now: 0=no cover, 1=has cover, 2=perfect size (not implemented)
     return imageData.empty() ? 0 : 1;
 }
 

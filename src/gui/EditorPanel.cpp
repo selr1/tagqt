@@ -179,6 +179,7 @@ void EditorPanel::onCoverClicked() {
         QFile file(filepath);
         if (file.open(QIODevice::ReadOnly)) {
             QByteArray data = file.readAll();
+            file.close();
             currentCoverData.assign(data.begin(), data.end());
             
             QString mimeType = filepath.endsWith(".png") ? "image/png" : "image/jpeg";

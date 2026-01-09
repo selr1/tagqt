@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QStyle>
 #include <QDir>
+#include <QDirIterator>
 #include <QFileInfo>
 #include <filesystem>
 
@@ -168,21 +169,14 @@ void MainWindow::onFolderSelected(const QString& path) {
     
     QStringList supportedExts = {"*.mp3", "*.flac", "*.m4a", "*.ogg", "*.wav"};
     
-    QDir dir(path);
-    QFileInfoList files = dir.entryInfoList(supportedExts, QDir::Files | QDir::NoSymLinks, QDir::Name);
+    // Use QDirIterator for safe recursive directory traversal
+    QDirIterator it(path, supportedExts, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
     
-    // Also scan subdirectories
-    for (const QFileInfo& fileInfo : files) {
-        QString filepath = fileInfo.absoluteFilePath();
+    while (it.hasNext()) {
+        QString filepath = it.next();
         TrackTags tags = audioHandler->getTags(filepath.toStdString());
         QString itemId = trackTable->addTrack(tags);
         tracksCache[filepath] = tags;
-    }
-    
-    // Recursively scan subdirectories
-    QFileInfoList dirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks);
-    for (const QFileInfo& dirInfo : dirs) {
-        onFolderSelected(dirInfo.absoluteFilePath());
     }
     
     browserPanel->log(QString("Loaded %1 tracks from %2").arg(tracksCache.size()).arg(path));

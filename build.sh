@@ -108,7 +108,9 @@ cmake .. || {
 
 echo ""
 echo "Building..."
-cmake --build . -j$(nproc) || {
+# Get number of cores in a portable way
+NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+cmake --build . -j${NPROC} || {
     echo -e "${RED}Build failed${NC}"
     exit 1
 }
