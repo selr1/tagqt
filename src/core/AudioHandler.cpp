@@ -48,7 +48,7 @@ TrackTags AudioHandler::getTags(const std::string& filepath) {
             
             // Get duration
             if (f.audioProperties()) {
-                tags.duration = f.audioProperties()->length();
+                tags.duration = f.audioProperties()->lengthInSeconds();
             }
         }
 
@@ -176,8 +176,8 @@ std::vector<unsigned char> AudioHandler::getCover(const std::string& filepath) {
             TagLib::MP4::File mp4File(filepath.c_str());
             if (mp4File.isValid() && mp4File.tag()) {
                 TagLib::MP4::Tag *tag = mp4File.tag();
-                if (tag->itemListMap().contains("covr")) {
-                    TagLib::MP4::CoverArtList coverList = tag->itemListMap()["covr"].toCoverArtList();
+                if (tag->contains("covr")) {
+                    TagLib::MP4::CoverArtList coverList = tag->item("covr").toCoverArtList();
                     if (!coverList.isEmpty()) {
                         imageData.assign(coverList.front().data().data(),
                                        coverList.front().data().data() + coverList.front().data().size());
@@ -245,7 +245,7 @@ bool AudioHandler::setCover(const std::string& filepath, const std::vector<unsig
                     TagLib::ByteVector((const char*)imageData.data(), imageData.size()));
                 TagLib::MP4::CoverArtList coverList;
                 coverList.append(coverArt);
-                tag->itemListMap()["covr"] = coverList;
+                tag->setItem("covr", coverList);
                 
                 mp4File.save();
                 return true;
@@ -281,8 +281,8 @@ std::string AudioHandler::getLyrics(const std::string& filepath) {
         } else if (filepath.substr(filepath.length() - 4) == ".m4a") {
             TagLib::MP4::File mp4File(filepath.c_str());
             if (mp4File.isValid() && mp4File.tag()) {
-                if (mp4File.tag()->itemListMap().contains("\251lyr")) {
-                    return mp4File.tag()->itemListMap()["\251lyr"].toStringList().front().toCString(true);
+                if (mp4File.tag()->contains("\251lyr")) {
+                    return mp4File.tag()->item("\251lyr").toStringList().front().toCString(true);
                 }
             }
         }
@@ -338,9 +338,9 @@ bool AudioHandler::saveLyrics(const std::string& filepath, const std::string& ly
                 
                 TagLib::MP4::Tag *tag = mp4File.tag();
                 if (!lyrics.empty()) {
-                    tag->itemListMap()["\251lyr"] = TagLib::StringList(TagLib::String(lyrics, TagLib::String::UTF8));
+                    tag->setItem("\251lyr", TagLib::StringList(TagLib::String(lyrics, TagLib::String::UTF8)));
                 } else {
-                    tag->itemListMap().erase("\251lyr");
+                    tag->removeItem("\251lyr");
                 }
                 
                 mp4File.save();
