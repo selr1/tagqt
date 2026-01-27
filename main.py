@@ -1,7 +1,7 @@
 import sys
 from PySide6.QtWidgets import QApplication
-from melodate.ui.main import MainWindow
-from melodate.ui.theme import Theme
+from tagqt.ui.main import MainWindow
+from tagqt.ui.theme import Theme
 
 def main():
     app = QApplication(sys.argv)
