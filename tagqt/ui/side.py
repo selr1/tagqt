@@ -6,6 +6,12 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 from tagqt.ui.theme import Theme
 
+class ClickableLabel(QLabel):
+    clicked = Signal()
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
 class Sidebar(QWidget):
     save_clicked = Signal()
     romanize_clicked = Signal()
@@ -37,10 +43,13 @@ class Sidebar(QWidget):
         layout.setSpacing(20)
         
         scroll.setWidget(content_widget)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         main_layout.addWidget(scroll)
 
         # Cover Art
-        self.cover_label = QLabel()
+        self.cover_label = ClickableLabel()
+        self.cover_label.clicked.connect(self.cover_clicked.emit)
+        self.cover_label.setCursor(Qt.PointingHandCursor)
         self.cover_label.setFixedSize(200, 200)
         self.cover_label.setStyleSheet(f"background-color: {Theme.SURFACE0}; border-radius: {Theme.CORNER_RADIUS};")
         self.cover_label.setAlignment(Qt.AlignCenter)
@@ -73,6 +82,11 @@ class Sidebar(QWidget):
         form_layout.addRow("Album:", self.album_edit)
         form_layout.addRow("Album Artist:", self.album_artist_edit)
         
+        self.year_edit = QLineEdit()
+        self.genre_edit = QLineEdit()
+        form_layout.addRow("Year:", self.year_edit)
+        form_layout.addRow("Genre:", self.genre_edit)
+        
         layout.addLayout(form_layout)
         
         # Collapsible Extended Metadata
@@ -88,8 +102,6 @@ class Sidebar(QWidget):
         extended_layout.setContentsMargins(0, 0, 0, 0)
         extended_layout.setSpacing(15)
         
-        self.year_edit = QLineEdit()
-        self.genre_edit = QLineEdit()
         self.disc_edit = QLineEdit()
         self.track_edit = QLineEdit()
         self.bpm_edit = QLineEdit()
@@ -98,8 +110,6 @@ class Sidebar(QWidget):
         self.publisher_edit = QLineEdit()
         self.comment_edit = QLineEdit()
         
-        extended_layout.addRow("Year:", self.year_edit)
-        extended_layout.addRow("Genre:", self.genre_edit)
         self.disc_label = QLabel("Disc:")
         extended_layout.addRow(self.disc_label, self.disc_edit)
         self.track_label = QLabel("Track:")
@@ -312,9 +322,9 @@ class Sidebar(QWidget):
             self.romanize_btn.setText("Romanize Lyrics")
             
             # Cover
-            self.cover_label.setText("Batch Edit")
+            self.cover_label.setText("Get Cover")
             self.resolution_label.setText("Multiple Files")
-            self.setStyleSheet(f"background-color: {Theme.MANTLE}; border: 2px solid {Theme.ACCENT};")
+            self.setStyleSheet(f"background-color: {Theme.MANTLE};")
             
         else:
             for w in common_fields:
