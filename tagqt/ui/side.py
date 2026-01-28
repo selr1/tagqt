@@ -329,8 +329,6 @@ class Sidebar(QWidget):
             
             self.save_btn.setText("Save All Changes")
             self.cancel_global_btn.setVisible(True)
-            self.save_btn.setText("Save All Changes")
-            self.cancel_global_btn.setVisible(True)
             # self.reencode_btn.setVisible(True) # Now shared
             
             # Button labels stay the same in global mode - it's already implied
@@ -341,7 +339,7 @@ class Sidebar(QWidget):
             # Cover
             self.cover_label.setPixmap(QPixmap())
             self.cover_label.setText("Get Cover")
-            # self.resolution_label.setText("Multiple Files") # Removed by user? No, I see it was missing in view.
+            self.resolution_label.setText("Multiple Files")
             
             self.setStyleSheet(f"#Sidebar {{ background-color: {Theme.MANTLE}; }}")
             
@@ -352,8 +350,6 @@ class Sidebar(QWidget):
             for w in common_fields:
                 w.setPlaceholderText("")
             
-            self.save_btn.setText("Save Changes")
-            self.cancel_global_btn.setVisible(False)
             self.save_btn.setText("Save Changes")
             self.cancel_global_btn.setVisible(False)
             # self.reencode_btn.setVisible(False) # Support single edit
