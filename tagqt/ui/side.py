@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, 
-    QPushButton, QLabel, QHBoxLayout, QScrollArea, QFrame
+    QPushButton, QLabel, QHBoxLayout, QScrollArea, QFrame,
+    QBoxLayout
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
@@ -155,7 +156,7 @@ class Sidebar(QWidget):
         actions_layout.setSpacing(12)
 
         # Romanize and Re-encode Buttons Row
-        romanize_layout = QHBoxLayout()
+        self.romanize_layout = QBoxLayout(QBoxLayout.LeftToRight)
         
         self.romanize_btn = QPushButton("Romanize Lyrics")
         self.romanize_btn.setProperty("class", "secondary")
@@ -169,9 +170,9 @@ class Sidebar(QWidget):
         self.reencode_btn.clicked.connect(self.reencode_flac_clicked.emit)
         # Always visible or controlled by logic, but user requested it for single edit too
         self.reencode_btn.setVisible(True) 
-        romanize_layout.addWidget(self.reencode_btn)
+        self.romanize_layout.addWidget(self.reencode_btn)
         
-        actions_layout.addLayout(romanize_layout)
+        actions_layout.addLayout(self.romanize_layout)
 
         # Lyrics Buttons Row
         lyrics_btn_layout = QHBoxLayout()
@@ -336,10 +337,10 @@ class Sidebar(QWidget):
             self.cover_btn.setText("Get Cover")
             self.romanize_btn.setText("Romanize Lyrics")
             
-            # Cover
-            self.cover_label.setText("Get Cover")
-            self.resolution_label.setText("Multiple Files")
             self.setStyleSheet(f"#Sidebar {{ background-color: {Theme.MANTLE}; }}")
+            
+            # Stack buttons vertically in Global Mode
+            self.romanize_layout.setDirection(QBoxLayout.TopToBottom)
             
         else:
             for w in common_fields:
@@ -357,6 +358,9 @@ class Sidebar(QWidget):
             self.romanize_btn.setText("Romanize Lyrics")
             
             self.setStyleSheet("")
+            
+            # Side-by-side in Single Mode
+            self.romanize_layout.setDirection(QBoxLayout.LeftToRight)
 
     def get_modified_fields(self):
         """
