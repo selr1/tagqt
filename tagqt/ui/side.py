@@ -338,7 +338,7 @@ class Sidebar(QWidget):
             self.cover_label.setText("Get Cover")
             
             self._current_res = ""
-            self._current_specs = "Multiple Files"
+            self._current_specs = "Multiple Files Selected"
             self._update_info_label()
             
             self.setStyleSheet(f"#Sidebar {{ background-color: {Theme.MANTLE}; }}")
