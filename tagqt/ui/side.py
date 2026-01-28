@@ -199,24 +199,24 @@ class Sidebar(QWidget):
         line.setStyleSheet(f"background-color: {Theme.SURFACE1};")
         bottom_layout.addWidget(line)
 
-        self.save_btn = QPushButton("Save Changes")
-        self.save_btn.setProperty("class", "primary")
-        self.save_btn.setCursor(Qt.PointingHandCursor)
-        self.save_btn.clicked.connect(self.save_clicked.emit)
-        bottom_layout.addWidget(self.save_btn)
-
-        self.cancel_global_btn = QPushButton("Cancel Batch Edit")
-        self.cancel_global_btn.setCursor(Qt.PointingHandCursor)
-        self.cancel_global_btn.clicked.connect(self.cancel_global_clicked.emit)
-        self.cancel_global_btn.setVisible(False)
-        self.cancel_global_btn.setStyleSheet(f"background-color: {Theme.RED}; color: {Theme.BASE};")
-        bottom_layout.addWidget(self.cancel_global_btn)
-        
         self.reencode_btn = QPushButton("Re-encode FLAC")
         self.reencode_btn.setCursor(Qt.PointingHandCursor)
         self.reencode_btn.clicked.connect(self.reencode_flac_clicked.emit)
         self.reencode_btn.setVisible(False)
         bottom_layout.addWidget(self.reencode_btn)
+        
+        self.cancel_global_btn = QPushButton("Cancel Batch Edit")
+        self.cancel_global_btn.setCursor(Qt.PointingHandCursor)
+        self.cancel_global_btn.clicked.connect(self.cancel_global_clicked.emit)
+        self.cancel_global_btn.setVisible(False)
+        self.cancel_global_btn.setStyleSheet(f"background-color: {Theme.SURFACE2}; color: {Theme.TEXT};")
+        bottom_layout.addWidget(self.cancel_global_btn)
+
+        self.save_btn = QPushButton("Save Changes")
+        self.save_btn.setProperty("class", "primary")
+        self.save_btn.setCursor(Qt.PointingHandCursor)
+        self.save_btn.clicked.connect(self.save_clicked.emit)
+        bottom_layout.addWidget(self.save_btn)
         
         main_layout.addLayout(bottom_layout)
 
