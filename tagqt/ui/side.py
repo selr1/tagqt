@@ -24,6 +24,7 @@ class Sidebar(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.setObjectName("Sidebar")
         self.setup_ui()
 
     def setup_ui(self):
@@ -324,7 +325,7 @@ class Sidebar(QWidget):
             # Cover
             self.cover_label.setText("Get Cover")
             self.resolution_label.setText("Multiple Files")
-            self.setStyleSheet(f"background-color: {Theme.MANTLE};")
+            self.setStyleSheet(f"#Sidebar {{ background-color: {Theme.MANTLE}; }}")
             
         else:
             for w in common_fields:
