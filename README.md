@@ -18,9 +18,14 @@ A modern desktop audio metadata editor built with Python and PySide6, supporting
 
 ## Screenshots
 
-| Global Mode | Editor |
-| :---: | :---: |
-| <img src="globalmode.png" width="400"> | <img src="editor.png" width="400"> |
+### Editor Mode
+![Editor](editor.png)
+
+
+### Global Editor Mode
+![Global](globalmode.png)
+*Edits done in this mode will apply to all selected files.*
+
 
 ## Requirements
 
