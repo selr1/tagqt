@@ -177,7 +177,6 @@ class MainWindow(QMainWindow):
         self.file_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_list.customContextMenuRequested.connect(self.show_context_menu)
         self.file_list.files_dropped.connect(self.on_files_dropped)
-        self.file_list.itemClicked.connect(self.on_file_selected)
         self.file_list.itemSelectionChanged.connect(self.on_selection_changed)
         content_layout.addWidget(self.file_list, stretch=2)
         
