@@ -1126,6 +1126,10 @@ class MainWindow(QMainWindow):
 
     def on_file_selected(self, item, column):
         # Handle both top-level items (files in File mode) and children (files in Group mode)
+        # Prevent loading if we are in multi-select mode (Global Edit)
+        if len(self.file_list.selectedItems()) > 1:
+            return
+
         # Groups don't have file paths in user role usually, or we need to check.
         filepath = item.data(0, Qt.UserRole)
         if filepath:
