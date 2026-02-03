@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QTextBrowser, QPushButton, 
-    QHBoxLayout, QLabel
+    QHBoxLayout
 )
 from PySide6.QtCore import Qt
 from tagqt.ui.theme import Theme
@@ -8,18 +8,12 @@ from tagqt.ui.theme import Theme
 class HelpDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Hints & Tips")
-        self.resize(600, 500)
+        self.resize(500, 400)
         self.setStyleSheet(Theme.get_stylesheet())
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20)
-        
-        # Header
-        header = QLabel("Hints & Tips")
-        header.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {Theme.ACCENT};")
-        layout.addWidget(header)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Content
         self.browser = QTextBrowser()
@@ -31,7 +25,6 @@ class HelpDialog(QDialog):
                 border-radius: {Theme.CORNER_RADIUS};
                 padding: 15px;
                 color: {Theme.TEXT};
-                line-height: 1.6;
             }}
         """)
         layout.addWidget(self.browser)

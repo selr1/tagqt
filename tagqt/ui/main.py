@@ -1166,64 +1166,77 @@ class MainWindow(QMainWindow):
             self.setUpdatesEnabled(True)
 
     def show_hints(self):
-        hints_text = """<h3>Usage Tips</h3>
-<p><b>Batch Operations</b></p>
+        hints_text = """
+<b>Batch Operations</b>
 <ul>
-<li>Click the progress bar to view details</li>
-<li>Use the × button to cancel any operation</li>
+<li>Select multiple files to enter Global Edit mode</li>
+<li>Click the progress bar to view operation details</li>
+<li>Right-click files for context menu actions</li>
 </ul>
 
-<p><b>Editing</b></p>
+<b>Editing</b>
 <ul>
-<li>Global Edit applies changes to all visible files at once</li>
+<li>Global Edit applies changes to all selected files</li>
 <li>Right-click column headers to show/hide columns</li>
+<li>Empty fields in Global Edit keep the original value</li>
 </ul>
 
-<p><b>Dependencies</b></p>
+<b>Optional Dependencies</b>
 <ul>
-<li><b>Romanize</b>: pip install koroman</li>
-<li><b>Re-encode FLAC</b>: ffmpeg (apt install ffmpeg)</li>
-<li><b>Auto-Tag</b>: pip install musicbrainzngs</li>
+<li><code>koroman</code> - Korean romanization</li>
+<li><code>ffmpeg</code> - FLAC re-encoding</li>
+<li><code>musicbrainzngs</code> - Auto-tagging</li>
 </ul>
 
-<p><b>Supported Formats</b>: MP3, FLAC, OGG, M4A, WAV</p>
+<b>Formats</b>: MP3, FLAC, OGG, M4A, WAV
 """
         from tagqt.ui.help import HelpDialog
         dialog = HelpDialog(self)
+        dialog.setWindowTitle("Hints & Tips")
         dialog.set_content(hints_text)
         dialog.exec()
     
     def show_shortcuts(self):
-        shortcuts_text = """<h3>Keyboard Shortcuts</h3>
-<table cellpadding="8">
-<tr><td><b>Ctrl+O</b></td><td>Open folder</td></tr>
-<tr><td><b>Ctrl+S</b></td><td>Save metadata</td></tr>
-<tr><td><b>Ctrl+G</b></td><td>Global edit mode</td></tr>
-<tr><td><b>Ctrl+Q</b></td><td>Quit application</td></tr>
-<tr><td><b>Escape</b></td><td>Exit global edit mode</td></tr>
+        shortcuts_text = """
+<table width="100%" cellpadding="10" style="border-collapse: collapse;">
+<tr><td width="120"><code>Ctrl+O</code></td><td>Open folder</td></tr>
+<tr><td><code>Ctrl+S</code></td><td>Save changes</td></tr>
+<tr><td><code>Ctrl+G</code></td><td>Toggle Global Edit</td></tr>
+<tr><td><code>Ctrl+A</code></td><td>Select all files</td></tr>
+<tr><td><code>Escape</code></td><td>Exit Global Edit</td></tr>
+<tr><td><code>Ctrl+Q</code></td><td>Quit</td></tr>
 </table>
 """
         from tagqt.ui.help import HelpDialog
         dialog = HelpDialog(self)
+        dialog.setWindowTitle("Keyboard Shortcuts")
         dialog.set_content(shortcuts_text)
         dialog.exec()
     
     def show_about(self):
-        about_text = """<h2 style="margin-bottom: 5px;">TagQt</h2>
-<p style="color: #666; margin-top: 0;">Music Metadata Editor</p>
+        about_text = f"""
+<div style="text-align: center; margin-bottom: 20px;">
+<span style="font-size: 24px; font-weight: bold; color: {Theme.ACCENT};">TagQt</span><br>
+<span style="color: {Theme.SUBTEXT0};">Music Metadata Editor</span>
+</div>
 
-<p>A modern application for editing audio file metadata, built with PySide6.</p>
+<p>A modern application for editing audio file metadata.</p>
 
-<p><b>Capabilities</b></p>
+<b>Features</b>
 <ul>
 <li>Edit tags for MP3, FLAC, OGG, M4A, WAV</li>
-<li>Auto-tag using MusicBrainz database</li>
+<li>Auto-tag using MusicBrainz</li>
 <li>Fetch lyrics and album artwork</li>
-<li>Batch rename and re-encode files</li>
+<li>Batch rename and re-encode</li>
 </ul>
+
+<p style="margin-top: 20px;">
+<a href="https://github.com/selr1/tagqt" style="color: {Theme.ACCENT};">github.com/selr1/tagqt</a>
+</p>
 """
         from tagqt.ui.help import HelpDialog
         dialog = HelpDialog(self)
+        dialog.setWindowTitle("About TagQt")
         dialog.set_content(about_text)
         dialog.exec()
 
