@@ -89,16 +89,18 @@ class MainWindow(QMainWindow):
         self.batch_cancel_btn.setFixedWidth(70)
         self.batch_cancel_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {Theme.RED};
-                color: #ffffff;
+                background-color: {Theme.SURFACE1};
+                color: {Theme.TEXT};
                 font-size: 11px;
-                font-weight: 700;
-                border: none;
+                font-weight: 600;
+                border: 1px solid {Theme.SURFACE1};
                 border-radius: 4px;
                 padding: 4px 12px;
             }}
             QPushButton:hover {{
-                background-color: #ff7777;
+                background-color: {Theme.RED};
+                color: #ffffff;
+                border: 1px solid {Theme.RED};
             }}
             QPushButton:pressed {{
                 background-color: #cc4444;
