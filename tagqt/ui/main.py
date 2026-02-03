@@ -103,7 +103,7 @@ class MainWindow(QMainWindow):
                 border: 1px solid {Theme.RED};
             }}
             QPushButton:pressed {{
-                background-color: #cc4444;
+                background-color: {Theme.ACCENT_DIM};
             }}
             QPushButton:disabled {{
                 background-color: {Theme.SURFACE2};
