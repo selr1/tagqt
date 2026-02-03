@@ -20,11 +20,11 @@ A modern desktop audio metadata editor built with Python and PySide6, supporting
 
 ### Editor Mode
 
-![Editor](github/editor.png)
+![Editor](editor.png)
 
 ### Global Editor Mode
 
-![Global](github/globalmode.png)
+![Global](globalmode.png)
 *Edits done in this mode will apply to all selected files.*
 
 ## Requirements
