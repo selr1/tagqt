@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLineEdit, QListWidget, 
-    QListWidgetItem, QShortcut
+    QListWidgetItem
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeySequence
+from PySide6.QtGui import QKeySequence, QShortcut
 from tagqt.ui.theme import Theme
 
 
