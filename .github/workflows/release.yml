@@ -14,16 +14,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        include:
-          - os: windows-latest
-            artifact_name: tagqt.exe
-            asset_name: tagqt-windows.exe
-          - os: ubuntu-latest
-            artifact_name: tagqt.AppImage
-            asset_name: tagqt-linux.AppImage
-          - os: macos-latest
-            artifact_name: tagqt.app
-            asset_name: tagqt-macos.app
 
     steps:
       - name: Checkout code
@@ -74,6 +64,9 @@ jobs:
       - name: Create AppImage (Linux)
         if: runner.os == 'Linux'
         run: |
+          # Install ImageMagick for icon creation
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          
           # Download linuxdeploy and linuxdeploy-plugin-qt
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
@@ -99,11 +92,14 @@ jobs:
           
           # Create a simple icon (placeholder)
           echo "Creating placeholder icon"
-          convert -size 256x256 xc:blue AppDir/usr/share/icons/hicolor/256x256/apps/tagqt.png || touch AppDir/usr/share/icons/hicolor/256x256/apps/tagqt.png
+          convert -size 256x256 xc:blue AppDir/usr/share/icons/hicolor/256x256/apps/tagqt.png
           
-          # Build AppImage
+          # Build AppImage - find qmake or set a default
           export OUTPUT=tagqt.AppImage
-          export QMAKE=/usr/lib/qt6/bin/qmake
+          QMAKE_PATH=$(which qmake6 || which qmake || echo "/usr/lib/qt6/bin/qmake")
+          if [ -f "$QMAKE_PATH" ]; then
+            export QMAKE="$QMAKE_PATH"
+          fi
           ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --plugin qt
           
           # Move to dist folder
@@ -152,8 +148,10 @@ jobs:
           # Create a zip of the .app bundle if it exists, otherwise use the binary
           if [ -d "dist/tagqt.app" ]; then
             cd dist && zip -r ../tagqt-macos.zip tagqt.app && cd ..
+            echo "APP_BUNDLE=true" >> $GITHUB_ENV
           else
             cp dist/tagqt tagqt-macos
+            echo "APP_BUNDLE=false" >> $GITHUB_ENV
           fi
 
       - name: Upload artifacts (Windows)
@@ -170,14 +168,19 @@ jobs:
           name: tagqt-linux
           path: tagqt-linux.AppImage
 
-      - name: Upload artifacts (macOS)
-        if: runner.os == 'macOS'
+      - name: Upload artifacts (macOS - App Bundle)
+        if: runner.os == 'macOS' && env.APP_BUNDLE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: tagqt-macos
-          path: |
-            tagqt-macos.zip
-            tagqt-macos
+          path: tagqt-macos.zip
+
+      - name: Upload artifacts (macOS - Binary)
+        if: runner.os == 'macOS' && env.APP_BUNDLE == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tagqt-macos
+          path: tagqt-macos
 
   release:
     name: Create Release
