@@ -497,7 +497,7 @@ jobs:
           INTERNAL="${HERE}/usr/bin/_internal"
 
           export PATH="${HERE}/usr/bin:${PATH}"
-          export LD_LIBRARY_PATH="${HERE}/usr/bin:${INTERNAL}:${LD_LIBRARY_PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/bin:${INTERNAL}:${INTERNAL}/PySide6/Qt/lib:${LD_LIBRARY_PATH}"
 
           # Point Qt to its own bundled plugins inside the AppImage
           export QT_PLUGIN_PATH="${INTERNAL}/PySide6/Qt/plugins"
