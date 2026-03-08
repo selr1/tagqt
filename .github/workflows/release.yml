@@ -210,7 +210,8 @@ jobs:
             libfontconfig1 \
             libdbus-1-3 \
             libxcb-xkb1 \
-            fuse
+            fuse \
+            appstream
 
       - name: Install Python dependencies
         run: |
@@ -267,7 +268,6 @@ jobs:
           Categories=Audio;AudioVideo;Music;
           Comment=A music metadata editor built with Python and Qt
           Keywords=music;tag;metadata;mp3;flac;audio;
-          Version=${{ steps.version.outputs.VERSION }}
           EOF
           sed -i 's/^          //' TagQt.AppDir/TagQt.desktop
 
