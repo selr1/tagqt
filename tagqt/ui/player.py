@@ -8,25 +8,29 @@ Includes LRC lyrics parsing and synchronized line tracking.
 import re
 import logging
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
-from PySide6.QtCore import QUrl, QObject, Signal
+from PySide6.QtCore import QUrl, QObject, Signal, QTimer
 
 logger = logging.getLogger(__name__)
 
-_LRC_PATTERN = re.compile(r'\[(\d+):(\d+)[\.:](\d+)\](.*)')
+_LRC_PATTERN = re.compile(r'^\s*\[(\d+):(\d+)[\.:](\d+)\](.*)')
 
 
-def parse_lrc(text: str) -> list[tuple[int, str]]:
+def parse_lrc(text: str) -> list[tuple[int, str, int]]:
     """
-    Parse LRC formatted lyrics into a list of (milliseconds, line) tuples
-    sorted by time ascending. Lines without timestamps are ignored.
+    Parse LRC formatted lyrics into a list of (milliseconds, line_text, source_line_number)
+    tuples sorted by time ascending. Lines without timestamps are ignored.
+
+    The source_line_number tracks which line in the original text this entry came from,
+    so highlighting can target the correct line even when non-LRC lines are present.
 
     Handles formats:
-    [mm:ss.xx]  — standard LRC
-    [mm:ss.xxx] — extended precision
+    [mm:ss.xx]  — standard LRC (centiseconds)
+    [mm:ss.xxx] — extended precision (milliseconds)
+    [mm:ss:xx]  — colon variant
     """
     result = []
-    for line in text.splitlines():
-        match = _LRC_PATTERN.match(line.strip())
+    for line_num, line in enumerate(text.splitlines()):
+        match = _LRC_PATTERN.match(line)
         if match:
             minutes = int(match.group(1))
             seconds = int(match.group(2))
@@ -38,7 +42,7 @@ def parse_lrc(text: str) -> list[tuple[int, str]]:
                 ms_frac = int(frac)
             ms = (minutes * 60 + seconds) * 1000 + ms_frac
             text_part = match.group(4).strip()
-            result.append((ms, text_part))
+            result.append((ms, text_part, line_num))
     return sorted(result, key=lambda x: x[0])
 
 
@@ -60,12 +64,18 @@ class PlayerController(QObject):
         self._current: int = -1
 
         # Lyrics sync state
-        self._lrc_lines: list[tuple[int, str]] = []
+        self._lrc_lines: list[tuple[int, str, int]] = []
         self._last_lyric_idx: int = -1
 
         self._player.playbackStateChanged.connect(self._on_state_changed)
-        self._player.positionChanged.connect(self._on_position_changed)
         self._player.mediaStatusChanged.connect(self._on_media_status)
+
+        # High-frequency timer for smooth position/lyrics updates
+        # Qt6 removed setNotifyInterval — positionChanged frequency
+        # is backend-dependent and often too slow for lyrics sync.
+        self._position_timer = QTimer(self)
+        self._position_timer.setInterval(50)  # 50ms = 20 updates/sec
+        self._position_timer.timeout.connect(self._poll_position)
 
     # ── Public API ──────────────────────────────────────────────────────
 
@@ -78,13 +88,16 @@ class PlayerController(QObject):
     def play_pause(self):
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
+            self._position_timer.stop()
             self.state_changed.emit('paused')
         else:
             self._player.play()
+            self._position_timer.start()
             self.state_changed.emit('playing')
 
     def stop(self):
         self._player.stop()
+        self._position_timer.stop()
         self._lrc_lines = []
         self._last_lyric_idx = -1
         self.state_changed.emit('stopped')
@@ -94,6 +107,7 @@ class PlayerController(QObject):
             self._current += 1
             self._load_current()
             self._player.play()
+            self._position_timer.start()
             self.track_changed.emit(self._current)
             self.state_changed.emit('playing')
 
@@ -102,6 +116,7 @@ class PlayerController(QObject):
             self._current -= 1
             self._load_current()
             self._player.play()
+            self._position_timer.start()
             self.track_changed.emit(self._current)
             self.state_changed.emit('playing')
 
@@ -128,6 +143,12 @@ class PlayerController(QObject):
             return self._queue[self._current]
         return None
 
+    def get_source_line(self, lrc_index: int) -> int:
+        """Return the original text line number for a given LRC entry index."""
+        if 0 <= lrc_index < len(self._lrc_lines):
+            return self._lrc_lines[lrc_index][2]
+        return 0
+
     # ── Internal ────────────────────────────────────────────────────────
 
     def _load_current(self):
@@ -138,16 +159,22 @@ class PlayerController(QObject):
 
     def _on_state_changed(self, state):
         if state == QMediaPlayer.PlaybackState.StoppedState:
+            self._position_timer.stop()
             self.state_changed.emit('stopped')
+        elif state == QMediaPlayer.PlaybackState.PausedState:
+            self._position_timer.stop()
 
-    def _on_position_changed(self, pos):
-        self.position_changed.emit(pos, self._player.duration())
+    def _poll_position(self):
+        """Timer-driven position update for smooth lyrics sync."""
+        pos = self._player.position()
+        dur = self._player.duration()
+        self.position_changed.emit(pos, dur)
 
         # Sync lyrics
         if not self._lrc_lines:
             return
         current_idx = 0
-        for i, (ms, _) in enumerate(self._lrc_lines):
+        for i, (ms, _, _) in enumerate(self._lrc_lines):
             if pos >= ms:
                 current_idx = i
             else:

@@ -385,8 +385,8 @@ class MainWindow(QMainWindow):
         self.player_bar_widget = player_bar  # store for theme refresh
         main_layout.addWidget(player_bar)
         
-        # Install event filter on sidebar to pause lyrics sync when user edits
-        self.sidebar.installEventFilter(self)
+        # Pause lyrics sync only when user actually edits the lyrics text
+        self.sidebar.lyrics_edit.textChanged.connect(self._on_lyrics_edited)
         
         # Load saved theme
         if self.settings.get_light_theme():
@@ -1602,6 +1602,7 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
 
     def on_selection_changed(self):
         # Restart timer (debounce) - waits for selection to stabilize
+        self._lyrics_sync_paused = False
         self.selection_timer.start(100) # 100ms delay
 
     def _handle_selection_deferred(self):
@@ -1709,6 +1710,12 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
                 self.metadata.save_cover_file(overwrite=True)
                 
             self.show_toast("Saved.")
+            self._lyrics_sync_paused = False
+            
+            # Re-feed lyrics to player in case user edited them
+            if hasattr(self, 'player') and self.metadata:
+                raw_lrc = self.metadata.lyrics or ''
+                self.player.set_lyrics(raw_lrc)
             
             # Refresh the item in the list
             self.file_list.update_file(self.current_file)
@@ -1911,6 +1918,12 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
                 meta = MetadataHandler(path)
                 lrc_text = meta.lyrics or ''
                 self.player.set_lyrics(lrc_text)
+                
+                # Update the lyrics box to show the new track's lyrics
+                self.sidebar.lyrics_edit.blockSignals(True)
+                self.sidebar.lyrics_edit.setText(lrc_text)
+                self.sidebar.lyrics_edit.blockSignals(False)
+                self._lyrics_sync_paused = False
             except Exception:
                 self.player.set_lyrics('')
 
@@ -1938,6 +1951,9 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
         if not lyrics_edit.toPlainText():
             return
 
+        # Get the actual line number in the displayed text
+        source_line = self.player.get_source_line(index)
+
         lyrics_edit.blockSignals(True)
         try:
             doc = lyrics_edit.document()
@@ -1950,10 +1966,10 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
             fmt_clear.setForeground(QColor(Theme.TEXT))
             cursor_clear.setCharFormat(fmt_clear)
 
-            # Navigate to the line by index
+            # Navigate to the correct source line
             cursor_line = QTextCursor(doc)
             cursor_line.movePosition(QTextCursor.MoveOperation.Start)
-            for _ in range(index):
+            for _ in range(source_line):
                 cursor_line.movePosition(QTextCursor.MoveOperation.NextBlock)
 
             # Select the entire line
@@ -1991,9 +2007,6 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
         finally:
             lyrics_edit.blockSignals(False)
 
-    def eventFilter(self, obj, event):
-        """Pause lyrics sync when user interacts with the sidebar."""
-        if obj is self.sidebar:
-            if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.FocusIn):
-                self._lyrics_sync_paused = True
-        return super().eventFilter(obj, event)
+    def _on_lyrics_edited(self):
+        """Pause sync only when the user actually modifies lyrics text."""
+        self._lyrics_sync_paused = True
