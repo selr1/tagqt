@@ -84,15 +84,12 @@ jobs:
           $url = "https://github.com/xiph/flac/releases/download/1.4.3/flac-1.4.3-win.zip"
           Invoke-WebRequest -Uri $url -OutFile flac-win.zip
           Expand-Archive -Path flac-win.zip -DestinationPath flac-win
-          $exe = Get-ChildItem -Recurse -Filter "flac.exe" flac-win | Select-Object -First 1
-          $dir = $exe.DirectoryName
-          Copy-Item $exe.FullName -Destination "flac.exe"
-          # Copy all DLLs from the same directory as flac.exe
-          Get-ChildItem -Path $dir -Filter "*.dll" | ForEach-Object {
-            Copy-Item $_.FullName -Destination $_.Name
-            Write-Host "Copied DLL: $($_.Name)"
-          }
-          Write-Host "flac.exe size: $((Get-Item flac.exe).Length) bytes"
+          Copy-Item "flac-win\flac-1.4.3-win\Win64\flac.exe" -Destination "flac.exe"
+          Copy-Item "flac-win\flac-1.4.3-win\Win64\libFLAC.dll" -Destination "libFLAC.dll"
+          Copy-Item "flac-win\flac-1.4.3-win\Win64\libFLAC++.dll" -Destination "libFLAC++.dll"
+          Write-Host "flac.exe: $((Get-Item flac.exe).Length) bytes"
+          Write-Host "libFLAC.dll: $((Get-Item libFLAC.dll).Length) bytes"
+          Write-Host "libFLAC++.dll: $((Get-Item 'libFLAC++.dll').Length) bytes"
         shell: pwsh
 
       - name: Inject version into app
@@ -110,7 +107,7 @@ jobs:
             --add-data "tagqt\ui\assets;tagqt\ui\assets" ^
             --add-binary "flac.exe;." ^
             --add-binary "libFLAC.dll;." ^
-            --add-binary "libogg.dll;." ^
+            --add-binary "libFLAC++.dll;." ^
             --hidden-import PySide6.QtCore ^
             --hidden-import PySide6.QtWidgets ^
             --hidden-import PySide6.QtGui ^
@@ -125,11 +122,11 @@ jobs:
             --hidden-import tagqt.core.csv_io ^
             --hidden-import tagqt.core.roman ^
             --hidden-import tagqt.core.case ^
-            --hidden-import koroman ^
-            --collect-data koroman ^
             --hidden-import tagqt.core.tags ^
             --hidden-import certifi ^
+            --hidden-import koroman ^
             --collect-data certifi ^
+            --collect-data koroman ^
             main.py
         shell: cmd
 
