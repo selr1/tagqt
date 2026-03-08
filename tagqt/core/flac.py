@@ -9,30 +9,30 @@ def _resolve_encoder() -> tuple[str, str]:
     Resolve which encoder binary to use and which mode.
 
     Returns a tuple of (binary_path, mode) where mode is either
-    'flac' or 'ffmpeg'. 
+    'flac' or 'ffmpeg'.
 
     Priority:
-    1. Bundled Xiph flac binary (inside PyInstaller sys._MEIPASS)
-    2. System Xiph flac binary (via PATH)
-    3. System ffmpeg binary (via PATH, as fallback)
+    1. System ffmpeg (full 48kHz/32-bit conversion, preferred)
+    2. System flac (re-compression only)
+    3. Bundled flac inside PyInstaller sys._MEIPASS (re-compression only, last resort)
     4. Returns (None, None) if nothing is available
     """
-    # 1. Bundled flac (PyInstaller frozen binary)
+    # 1. System ffmpeg — preferred, full 48kHz/32-bit conversion capability
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg, "ffmpeg"
+
+    # 2. System flac — re-compression only
+    system_flac = shutil.which("flac")
+    if system_flac:
+        return system_flac, "flac"
+
+    # 3. Bundled flac (PyInstaller frozen binary) — last resort, re-compression only
     if getattr(sys, "frozen", False):
         name = "flac.exe" if sys.platform == "win32" else "flac"
         bundled = os.path.join(sys._MEIPASS, name)
         if os.path.isfile(bundled):
             return bundled, "flac"
-
-    # 2. System flac
-    system_flac = shutil.which("flac")
-    if system_flac:
-        return system_flac, "flac"
-
-    # 3. System ffmpeg as fallback
-    system_ffmpeg = shutil.which("ffmpeg")
-    if system_ffmpeg:
-        return system_ffmpeg, "ffmpeg"
 
     # 4. Nothing available
     return None, None
@@ -101,7 +101,8 @@ class FlacEncoder:
                 return False, "FLAC encoder not found"
 
             if mode == "flac":
-                # Xiph flac native CLI syntax
+                # Xiph flac native CLI syntax — re-compression only
+                # Cannot change sample rate or bit depth, preserves source format
                 cmd = [
                     binary,
                     "--best",
@@ -111,7 +112,7 @@ class FlacEncoder:
                     filepath
                 ]
             elif mode == "ffmpeg":
-                # Original ffmpeg command preserved exactly as fallback
+                # ffmpeg — full conversion to 24-bit 48kHz
                 cmd = [
                     binary, '-y', '-i', filepath,
                     '-map_metadata', '0',
