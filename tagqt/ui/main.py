@@ -16,7 +16,7 @@ from tagqt.ui.batch_status import ClickableProgressBar, BatchStatusDialog, Click
 from tagqt.ui.workers import (
     LyricsWorker, AutoTagWorker, FolderLoaderWorker, RenameWorker,
     CoverFetchWorker, CoverResizeWorker, RomanizeWorker, CaseConvertWorker,
-    FlacReencodeWorker, CsvImportWorker, SaveWorker
+    FlacReencodeWorker, CsvImportWorker, SaveWorker, DuplicateScanWorker
 )
 import logging
 import os
@@ -640,6 +640,11 @@ class MainWindow(QMainWindow):
         reencode_all_action = QAction("Re-encode FLAC (all visible)", self)
         reencode_all_action.triggered.connect(self.reencode_flac_all)
         file_actions_menu.addAction(reencode_all_action)
+
+        tools_menu.addSeparator()
+        find_dupes_action = QAction("Find Duplicates", self)
+        find_dupes_action.triggered.connect(self.find_duplicates)
+        tools_menu.addAction(find_dupes_action)
         
         view_menu = menu_bar.addMenu("View")
         
@@ -744,6 +749,15 @@ class MainWindow(QMainWindow):
         autotag_action.setEnabled(has_selection)
         menu.addAction(autotag_action)
 
+        menu.addSeparator()
+
+        count = len(files)
+        delete_label = f"Delete {count} files" if count > 1 else "Delete file"
+        delete_action = QAction(delete_label, self)
+        delete_action.triggered.connect(self.delete_selected_files)
+        delete_action.setEnabled(has_selection)
+        menu.addAction(delete_action)
+
         menu.exec_(self.file_list.mapToGlobal(pos))
 
     def fetch_covers_context(self):
@@ -761,6 +775,68 @@ class MainWindow(QMainWindow):
         files = self.get_selected_files()
         if not files: return
         self._romanize_list(files)
+
+    def delete_selected_files(self):
+        files = self.get_selected_files()
+        if not files:
+            return
+
+        count = len(files)
+        if count == 1:
+            msg = f"Delete {os.path.basename(files[0])} from disk? This cannot be undone."
+        else:
+            msg = f"Delete {count} files from disk? This cannot be undone."
+
+        from PySide6.QtWidgets import QMessageBox
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle("Confirm Delete")
+        dlg.setText(msg)
+        dlg.setStyleSheet(Theme.current_stylesheet())
+        delete_btn = dlg.addButton("Delete", QMessageBox.DestructiveRole)
+        delete_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {Theme.RED};
+                color: {Theme.TOAST_TEXT};
+                border: none;
+                border-radius: {Theme.CORNER_RADIUS};
+                padding: 6px 16px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{ background-color: {Theme.MAROON}; }}
+        """)
+        dlg.addButton("Cancel", QMessageBox.RejectRole)
+        dlg.exec()
+        if dlg.clickedButton() != delete_btn:
+            return
+
+        deleted = []
+        playing_path = self.player.current_path if hasattr(self, 'player') else None
+
+        for f in files:
+            try:
+                os.remove(f)
+                deleted.append(f)
+            except Exception as e:
+                self.show_toast(f"Could not delete {os.path.basename(f)}: {e}", duration=4000)
+
+        if not deleted:
+            return
+
+        # Stop player if the playing track was deleted
+        if playing_path and playing_path in deleted:
+            self.player.stop()
+            self._now_playing_item = None
+            self.now_playing_label.setText("")
+
+        # Clear editor if the current file was deleted
+        if self.current_file and self.current_file in deleted:
+            self.current_file = None
+            self.metadata = None
+
+        self.file_list.remove_files(deleted)
+        self.file_list.update_missing_indicators()
+
+        self.show_toast(f"Deleted {len(deleted)} file{'s' if len(deleted) != 1 else ''}.")
 
     def enter_global_mode(self):
         # Select all VISIBLE files
@@ -976,6 +1052,8 @@ class MainWindow(QMainWindow):
         # to ensure items are in the correct groups if their tags changed.
         if self.file_list.current_mode != "File":
             self.file_list.refresh_view()
+
+        self.file_list.update_missing_indicators()
             
         if self.current_file:
              self.load_file(self.current_file)
@@ -1156,6 +1234,224 @@ class MainWindow(QMainWindow):
         
         self._start_batch_worker(FlacReencodeWorker(flac_files))
 
+    def find_duplicates(self):
+        files = self.file_list.all_files
+        if not files:
+            dialogs.show_warning(self, "No Files", "Load some audio files first.")
+            return
+
+        data = [(path, meta.title or '', meta.artist or '') for path, meta in files]
+        self._dup_thread = QThread()
+        self._dup_worker = DuplicateScanWorker(data)
+        self._dup_worker.moveToThread(self._dup_thread)
+        self._dup_thread.started.connect(self._dup_worker.run)
+        self._dup_worker.finished.connect(self._on_duplicates_found)
+        self._dup_worker.finished.connect(self._dup_thread.quit)
+        self._dup_worker.finished.connect(self._dup_worker.deleteLater)
+        self._dup_thread.finished.connect(self._dup_thread.deleteLater)
+        self.show_toast("Scanning for duplicates…", duration=2000)
+        self._dup_thread.start()
+
+    def _on_duplicates_found(self, dupes):
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                                       QPushButton, QScrollArea, QWidget)
+        from PySide6.QtCore import QSize
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Duplicate Tracks")
+        dialog.setMaximumWidth(480)
+        dialog.setStyleSheet(Theme.current_stylesheet())
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        # ── Title ──
+        title_label = QLabel("Duplicate Tracks")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet(
+            f"color: {Theme.TEXT}; font-size: 15px; font-weight: 600; background: transparent;")
+        layout.addWidget(title_label)
+
+        if not dupes:
+            # ── Empty state ──
+            layout.addStretch()
+
+            check = QLabel("✓")
+            check.setAlignment(Qt.AlignCenter)
+            check.setStyleSheet(
+                f"color: {Theme.GREEN}; font-size: 48px; background: transparent;")
+            layout.addWidget(check)
+
+            msg = QLabel("No duplicate tracks found")
+            msg.setAlignment(Qt.AlignCenter)
+            msg.setStyleSheet(
+                f"color: {Theme.TEXT}; font-size: 15px; font-weight: 600; background: transparent;")
+            layout.addWidget(msg)
+
+            sub = QLabel("All tracks in this folder have unique\ntitle + artist combinations.")
+            sub.setAlignment(Qt.AlignCenter)
+            sub.setWordWrap(True)
+            sub.setStyleSheet(
+                f"color: {Theme.SUBTEXT1}; font-size: 12px; background: transparent;")
+            layout.addWidget(sub)
+
+            layout.addStretch()
+        else:
+            # ── Results state ──
+            count_label = QLabel(
+                f"Found {len(dupes)} duplicate group{'s' if len(dupes) != 1 else ''}")
+            count_label.setAlignment(Qt.AlignCenter)
+            count_label.setStyleSheet(
+                f"color: {Theme.SUBTEXT1}; font-size: 12px; background: transparent;")
+            layout.addWidget(count_label)
+
+            container = QWidget()
+            container_layout = QVBoxLayout(container)
+            container_layout.setContentsMargins(0, 0, 0, 0)
+            container_layout.setSpacing(8)
+
+            for (title_key, artist_key), paths in sorted(dupes, key=lambda d: d[0]):
+                card = QWidget()
+                card.setStyleSheet(f"""
+                    QWidget#dupeCard {{
+                        background-color: {Theme.SURFACE0};
+                        border: 1px solid {Theme.SURFACE1};
+                        border-radius: 8px;
+                    }}
+                """)
+                card.setObjectName("dupeCard")
+                card_layout = QVBoxLayout(card)
+                card_layout.setContentsMargins(12, 12, 12, 12)
+                card_layout.setSpacing(4)
+
+                display_title = title_key or "(no title)"
+                display_artist = artist_key or "(no artist)"
+
+                t_label = QLabel(display_title)
+                t_label.setStyleSheet(
+                    f"color: {Theme.TEXT}; font-size: 13px; font-weight: 600;"
+                    " background: transparent; border: none;")
+                card_layout.addWidget(t_label)
+
+                a_label = QLabel(f"by {display_artist}")
+                a_label.setStyleSheet(
+                    f"color: {Theme.SUBTEXT1}; font-size: 12px;"
+                    " background: transparent; border: none;")
+                card_layout.addWidget(a_label)
+
+                for path in paths:
+                    btn = QPushButton(f"  ▸ {os.path.basename(path)}")
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background: transparent;
+                            color: {Theme.BLUE};
+                            border: none;
+                            text-align: left;
+                            padding: 2px 0px 2px 6px;
+                            font-size: 12px;
+                        }}
+                        QPushButton:hover {{
+                            color: {Theme.BLUE};
+                            text-decoration: underline;
+                        }}
+                    """)
+                    btn.setCursor(Qt.PointingHandCursor)
+                    btn.setToolTip(path)
+                    btn.clicked.connect(
+                        lambda checked, p=path, d=dialog: self._select_duplicate(p, d))
+                    card_layout.addWidget(btn)
+
+                container_layout.addWidget(card)
+
+            container_layout.addStretch()
+
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setStyleSheet(f"""
+                QScrollArea {{
+                    background-color: transparent;
+                    border: none;
+                }}
+            """)
+            scroll.setWidget(container)
+            content_h = container.sizeHint().height()
+            scroll_h = min(content_h + 2, 400)
+            scroll.setFixedHeight(scroll_h)
+            layout.addWidget(scroll)
+
+        # ── Footer ──
+        footer = QHBoxLayout()
+        footer.addStretch()
+
+        if dupes:
+            select_all_btn = QPushButton("Select All Duplicates")
+            select_all_btn.setCursor(Qt.PointingHandCursor)
+            select_all_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {Theme.SURFACE1};
+                    color: {Theme.TEXT};
+                    border: none;
+                    border-radius: {Theme.CORNER_RADIUS};
+                    padding: 6px 16px;
+                    font-size: 12px;
+                }}
+                QPushButton:hover {{
+                    background-color: {Theme.SURFACE2};
+                }}
+            """)
+            all_dup_paths = [p for (_, _), paths in dupes for p in paths]
+            select_all_btn.clicked.connect(
+                lambda: self._select_all_duplicates(all_dup_paths, dialog))
+            footer.addWidget(select_all_btn)
+
+        close_btn = QPushButton("Close")
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {Theme.SURFACE1};
+                color: {Theme.TEXT};
+                border: none;
+                border-radius: {Theme.CORNER_RADIUS};
+                padding: 6px 16px;
+                font-size: 12px;
+            }}
+            QPushButton:hover {{
+                background-color: {Theme.SURFACE2};
+            }}
+        """)
+        close_btn.setFixedWidth(100)
+        close_btn.clicked.connect(dialog.accept)
+        footer.addWidget(close_btn)
+
+        layout.addLayout(footer)
+
+        dialog.adjustSize()
+
+        # Center on parent
+        parent_geo = self.geometry()
+        dialog.move(
+            parent_geo.x() + (parent_geo.width() - dialog.width()) // 2,
+            parent_geo.y() + (parent_geo.height() - dialog.height()) // 2,
+        )
+        dialog.exec()
+
+    def _select_all_duplicates(self, paths, dialog):
+        self.file_list.clearSelection()
+        for p in paths:
+            item = self.file_list.path_to_item.get(p)
+            if item:
+                item.setSelected(True)
+        dialog.accept()
+
+    def _select_duplicate(self, path, dialog):
+        item = self.file_list.path_to_item.get(path)
+        if item:
+            self.file_list.clearSelection()
+            item.setSelected(True)
+            self.file_list.scrollToItem(item)
+        dialog.accept()
+
     def export_to_csv(self):
         files = self.file_list.all_files
         if not files:
@@ -1277,6 +1573,7 @@ class MainWindow(QMainWindow):
         if results:
             self.file_list.add_files(results)
             self.settings.set_last_folder(folder_path)
+            self.file_list.update_missing_indicators()
         
         self.settings.add_recent_folder(folder_path)
         self.update_recent_menu()
@@ -1769,6 +2066,7 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
             
             # Refresh the item in the list
             self.file_list.update_file(self.current_file)
+            self.file_list.update_missing_indicators()
 
     def romanize_metadata(self):
         if getattr(self.sidebar, 'is_global_mode', False):

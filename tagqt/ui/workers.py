@@ -667,6 +667,25 @@ class CsvImportWorker(QObject):
         finally:
             self.finished.emit()
 
+class DuplicateScanWorker(QObject):
+    """Scans loaded files for duplicate title+artist pairs."""
+    finished = Signal(list)  # list of (key, [paths])
+
+    def __init__(self, files):
+        super().__init__()
+        self.files = files  # list of (path, title, artist)
+
+    def run(self):
+        from collections import defaultdict
+        groups = defaultdict(list)
+        for path, title, artist in self.files:
+            key = (title.strip().lower(), artist.strip().lower())
+            if key[0] or key[1]:  # skip rows with both blank
+                groups[key].append(path)
+        dupes = [(key, paths) for key, paths in groups.items() if len(paths) > 1]
+        self.finished.emit(dupes)
+
+
 class SaveWorker(QObject):
     progress = Signal(int, int)
     result = Signal(str, str, str)

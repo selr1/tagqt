@@ -1,8 +1,43 @@
-from PySide6.QtWidgets import QTreeWidget, QAbstractItemView, QTreeWidgetItem, QHeaderView, QTreeWidgetItemIterator, QMenu
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QTreeWidget, QAbstractItemView, QTreeWidgetItem, QHeaderView, QTreeWidgetItemIterator, QMenu, QStyledItemDelegate
+from PySide6.QtCore import Qt, Signal, QRect
+from PySide6.QtGui import QAction, QPainter, QColor, QBrush
 import os
 from tagqt.core.tags import MetadataHandler
+from tagqt.ui.theme import Theme
+
+MISSING_ROLE = Qt.UserRole + 1
+TEXT_OFFSET = 20  # px offset for filename text to make room for dot
+
+
+class MissingFieldDelegate(QStyledItemDelegate):
+    """Draws a colored dot for rows missing critical metadata fields."""
+
+    DOT_SIZE = 7
+    DOT_LEFT = 6
+
+    def paint(self, painter, option, index):
+        # Draw everything as normal but shifted right
+        adjusted = option.rect.adjusted(TEXT_OFFSET, 0, 0, 0)
+        from PySide6.QtWidgets import QStyleOptionViewItem
+        new_option = QStyleOptionViewItem(option)
+        new_option.rect = adjusted
+        super().paint(painter, new_option, index)
+
+        missing = index.data(MISSING_ROLE)
+        if missing and missing > 0:
+            color = QColor(Theme.RED) if missing >= 2 else QColor(Theme.YELLOW)
+            painter.save()
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setBrush(QBrush(color))
+            painter.setPen(Qt.NoPen)
+            y = option.rect.y() + (option.rect.height() - self.DOT_SIZE) // 2
+            painter.drawEllipse(QRect(option.rect.x() + self.DOT_LEFT, y, self.DOT_SIZE, self.DOT_SIZE))
+            painter.restore()
+
+    def sizeHint(self, option, index):
+        hint = super().sizeHint(option, index)
+        hint.setWidth(hint.width() + TEXT_OFFSET)
+        return hint
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,6 +72,9 @@ class FileList(QTreeWidget):
         self.all_files = []
         self.path_to_item = {} # filepath -> QTreeWidgetItem
         self.current_mode = "File"
+
+        self._missing_delegate = MissingFieldDelegate(self)
+        self.setItemDelegateForColumn(0, self._missing_delegate)
 
     def show_header_menu(self, pos):
         menu = QMenu(self)
@@ -133,6 +171,7 @@ class FileList(QTreeWidget):
         item.setText(7, meta.disc_number or "")
         item.setText(8, meta.track_number or "")
         item.setData(0, Qt.UserRole, path)
+        item.setData(0, MISSING_ROLE, self._calc_missing(meta))
         
         item.setTextAlignment(5, Qt.AlignCenter)  # Year
         item.setTextAlignment(7, Qt.AlignCenter)  # Disc
@@ -211,6 +250,31 @@ class FileList(QTreeWidget):
                     logger.warning("Error updating file %s: %s", path, e)
                 break
 
+    @staticmethod
+    def _calc_missing(meta):
+        """Return count of missing critical fields (title, artist, album, cover)."""
+        count = 0
+        if not meta.title:
+            count += 1
+        if not meta.artist:
+            count += 1
+        if not meta.album:
+            count += 1
+        try:
+            if not meta.get_cover():
+                count += 1
+        except Exception:
+            count += 1
+        return count
+
+    def update_missing_indicators(self):
+        """Recalculate missing-field dots for all visible rows."""
+        for path, meta in self.all_files:
+            item = self.path_to_item.get(path)
+            if item:
+                item.setData(0, MISSING_ROLE, self._calc_missing(meta))
+        self.viewport().update()
+
     def rename_file(self, old_path, new_path):
         # Update internal data
         for i, (fpath, meta) in enumerate(self.all_files):
@@ -230,3 +294,18 @@ class FileList(QTreeWidget):
                 except Exception as e:
                     logger.warning("Error loading renamed file %s: %s", new_path, e)
                 break
+
+    def remove_files(self, paths):
+        """Remove files from internal data and UI without full refresh."""
+        path_set = set(paths)
+        self.all_files = [(p, m) for p, m in self.all_files if p not in path_set]
+        for path in paths:
+            item = self.path_to_item.pop(path, None)
+            if item:
+                parent = item.parent()
+                if parent:
+                    parent.removeChild(item)
+                else:
+                    idx = self.indexOfTopLevelItem(item)
+                    if idx >= 0:
+                        self.takeTopLevelItem(idx)
