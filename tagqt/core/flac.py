@@ -1,8 +1,41 @@
 import subprocess
 import shutil
 import os
+import sys
 import tempfile
 
+def _resolve_encoder() -> tuple[str, str]:
+    """
+    Resolve which encoder binary to use and which mode.
+
+    Returns a tuple of (binary_path, mode) where mode is either
+    'flac' or 'ffmpeg'. 
+
+    Priority:
+    1. Bundled Xiph flac binary (inside PyInstaller sys._MEIPASS)
+    2. System Xiph flac binary (via PATH)
+    3. System ffmpeg binary (via PATH, as fallback)
+    4. Returns (None, None) if nothing is available
+    """
+    # 1. Bundled flac (PyInstaller frozen binary)
+    if getattr(sys, "frozen", False):
+        name = "flac.exe" if sys.platform == "win32" else "flac"
+        bundled = os.path.join(sys._MEIPASS, name)
+        if os.path.isfile(bundled):
+            return bundled, "flac"
+
+    # 2. System flac
+    system_flac = shutil.which("flac")
+    if system_flac:
+        return system_flac, "flac"
+
+    # 3. System ffmpeg as fallback
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg, "ffmpeg"
+
+    # 4. Nothing available
+    return None, None
 
 class FlacEncoder:
     """Handles FLAC re-encoding to 24-bit 48kHz using ffmpeg."""
@@ -28,10 +61,6 @@ class FlacEncoder:
         if not filepath.lower().endswith('.flac'):
             return False, "Not a FLAC file"
         
-        encoder = FlacEncoder.get_available_encoder()
-        if not encoder:
-            return False, "Neither flac nor ffmpeg is installed"
-            
         # Capture metadata before encoding
         tags_to_preserve = {}
         cover_data = None
@@ -60,16 +89,44 @@ class FlacEncoder:
         os.remove(temp_path)
         
         try:
-            # Construct command
-            cmd = ['ffmpeg', '-y', '-i', filepath, 
-                   '-map_metadata', '0',
-                   '-c:a', 'flac', 
-                   '-compression_level', '5',
-                   '-sample_fmt', 's32',
-                   '-ar', '48000']
-            
-            # -c:v copy to keep cover art (as a backup, though we restore manually too)
-            cmd.extend(['-c:v', 'copy', temp_path])
+            binary, mode = _resolve_encoder()
+
+            if binary is None:
+                from PySide6.QtWidgets import QApplication
+                from PySide6.QtCore import QMetaObject, Qt, Q_ARG
+                win = QApplication.activeWindow()
+                if win and hasattr(win, 'show_toast'):
+                    QMetaObject.invokeMethod(win, "show_toast", Qt.QueuedConnection, 
+                        Q_ARG(str, "FLAC encoder not found. Please install FLAC or ffmpeg and ensure it is in your system PATH to use re-encoding."))
+                return False, "FLAC encoder not found"
+
+            if mode == "flac":
+                # Xiph flac native CLI syntax
+                cmd = [
+                    binary,
+                    "--best",
+                    "--force",
+                    "--keep-foreign-metadata",
+                    "--silent",
+                    "--endian", "little",
+                    "--sign", "signed",
+                    "--channels", "2",
+                    "--bps", "32",
+                    "--sample-rate", "48000",
+                    "-o", temp_path,
+                    filepath
+                ]
+            elif mode == "ffmpeg":
+                # Original ffmpeg command preserved exactly as fallback
+                cmd = [
+                    binary, '-y', '-i', filepath,
+                    '-map_metadata', '0',
+                    '-c:a', 'flac',
+                    '-compression_level', '5',
+                    '-sample_fmt', 's32',
+                    '-ar', '48000',
+                    '-c:v', 'copy', temp_path
+                ]
 
             result = subprocess.run(
                 cmd,

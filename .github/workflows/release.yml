@@ -76,8 +76,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller certifi
         shell: bash
+
+      - name: Download flac binary
+        run: |
+          $url = "https://github.com/xiph/flac/releases/download/1.4.3/flac-1.4.3-win.zip"
+          Invoke-WebRequest -Uri $url -OutFile flac-win.zip
+          Expand-Archive -Path flac-win.zip -DestinationPath flac-win
+          $exe = Get-ChildItem -Recurse -Filter "flac.exe" flac-win | Select-Object -First 1
+          Copy-Item $exe.FullName -Destination "flac.exe"
+          Write-Host "flac.exe found and copied: $(Get-Item flac.exe).Length bytes"
+        shell: pwsh
 
       - name: Inject version into app
         run: |
@@ -92,10 +102,23 @@ jobs:
             --icon "assets\logo.ico" ^
             --add-data "assets;assets" ^
             --add-data "tagqt\ui\assets;tagqt\ui\assets" ^
+            --add-binary "flac.exe;." ^
             --hidden-import PySide6.QtCore ^
             --hidden-import PySide6.QtWidgets ^
             --hidden-import PySide6.QtGui ^
             --hidden-import PySide6.QtNetwork ^
+            --hidden-import PySide6.QtSvg ^
+            --collect-data PySide6 ^
+            --hidden-import tagqt.core.musicbrainz ^
+            --hidden-import tagqt.core.lyric ^
+            --hidden-import tagqt.core.art ^
+            --hidden-import tagqt.core.flac ^
+            --hidden-import tagqt.core.rename ^
+            --hidden-import tagqt.core.csv_io ^
+            --hidden-import tagqt.core.roman ^
+            --hidden-import tagqt.core.tags ^
+            --hidden-import certifi ^
+            --collect-data certifi ^
             main.py
         shell: cmd
 
@@ -215,7 +238,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller certifi
+
+      - name: Download flac binary (static)
+        run: |
+          wget -q "https://github.com/Azathothas/ToolBox/releases/download/flac/flac_amd64_linux" -O flac
+          chmod +x flac
+          echo "Static flac binary downloaded: $(du -sh ./flac)"
+          file ./flac
 
       - name: Inject version into app
         run: |
@@ -229,10 +259,23 @@ jobs:
             --name "TagQt" \
             --add-data "assets:assets" \
             --add-data "tagqt/ui/assets:tagqt/ui/assets" \
+            --add-binary "flac:." \
             --hidden-import PySide6.QtCore \
             --hidden-import PySide6.QtWidgets \
             --hidden-import PySide6.QtGui \
             --hidden-import PySide6.QtNetwork \
+            --hidden-import PySide6.QtSvg \
+            --collect-data PySide6 \
+            --hidden-import tagqt.core.musicbrainz \
+            --hidden-import tagqt.core.lyric \
+            --hidden-import tagqt.core.art \
+            --hidden-import tagqt.core.flac \
+            --hidden-import tagqt.core.rename \
+            --hidden-import tagqt.core.csv_io \
+            --hidden-import tagqt.core.roman \
+            --hidden-import tagqt.core.tags \
+            --hidden-import certifi \
+            --collect-data certifi \
             --strip \
             main.py
 
