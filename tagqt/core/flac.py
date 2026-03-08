@@ -3,6 +3,9 @@ import shutil
 import os
 import sys
 import tempfile
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QMetaObject, Qt, Q_ARG
+from tagqt.core.tags import MetadataHandler
 
 def _get_all_encoders() -> list[tuple[str, str]]:
     """
@@ -92,7 +95,6 @@ class FlacEncoder:
         tags_to_preserve = {}
         cover_data = None
         try:
-            from tagqt.core.tags import MetadataHandler
             original_meta = MetadataHandler(filepath)
 
             for attr in ['title', 'artist', 'album', 'year', 'genre',
@@ -116,8 +118,6 @@ class FlacEncoder:
         if not encoders:
             # No encoder available at all — show toast and return
             try:
-                from PySide6.QtWidgets import QApplication
-                from PySide6.QtCore import QMetaObject, Qt, Q_ARG
                 win = QApplication.activeWindow()
                 if win and hasattr(win, 'show_toast'):
                     QMetaObject.invokeMethod(win, "show_toast", Qt.QueuedConnection,
@@ -152,7 +152,6 @@ class FlacEncoder:
 
                 # Encoding succeeded — restore metadata
                 try:
-                    from tagqt.core.tags import MetadataHandler
                     new_meta = MetadataHandler(temp_path)
 
                     for key, value in tags_to_preserve.items():

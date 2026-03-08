@@ -9,7 +9,7 @@ class SearchResultsDialog(QDialog):
         self.setWindowIcon(QApplication.instance().windowIcon())
         self.setWindowTitle(f"Select {mode.capitalize()}")
         self.resize(700, 450)
-        self.setStyleSheet(Theme.get_stylesheet())
+        self.setStyleSheet(Theme.current_stylesheet())
         
         self.selected_result = None
         self.mode = mode

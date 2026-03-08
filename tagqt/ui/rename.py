@@ -11,7 +11,7 @@ class RenamerDialog(QDialog):
         self.setWindowIcon(QApplication.instance().windowIcon())
         self.setWindowTitle("Rename Files")
         self.resize(600, 500)
-        self.setStyleSheet(Theme.get_stylesheet())
+        self.setStyleSheet(Theme.current_stylesheet())
         
         self.files = files # List of (filepath, metadata) tuples
         self.preview_data = {} # filepath -> new_name

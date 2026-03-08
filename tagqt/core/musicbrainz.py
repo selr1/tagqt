@@ -2,6 +2,7 @@ import musicbrainzngs
 import re
 import unicodedata
 import time
+import requests
 
 musicbrainzngs.set_useragent("TagQt", "1.0", "https://github.com/example/tagqt")
 musicbrainzngs.set_rate_limit(limit_or_interval=1.0, new_requests=1)
@@ -35,7 +36,6 @@ class MusicBrainzClient:
 
     @classmethod
     def _retry(cls, func, max_retries=3):
-        import requests
         for attempt in range(max_retries):
             try:
                 return func()

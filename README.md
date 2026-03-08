@@ -23,7 +23,7 @@
 
 TagQt is a desktop music metadata editor for Windows and Linux. It reads and writes tags for MP3, FLAC, OGG, M4A, and WAV files. You can edit files one at a time or select multiple files and apply changes in bulk.
 
-The interface uses the Catppuccin Mocha color theme with an optional light mode (WIP). There is a command palette (`Ctrl+K`) for quick access to every action.
+The interface uses the Catppuccin Mocha color theme with an optional light mode. There is a command palette (`Ctrl+K`) for quick access to every action.
 
 ## Features
 

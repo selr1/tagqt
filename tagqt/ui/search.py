@@ -33,7 +33,7 @@ class UnifiedSearchDialog(QDialog):
         self.setWindowIcon(QApplication.instance().windowIcon())
         self.setWindowTitle(f"Get {mode.capitalize()}{'s' if mode == 'cover' else ''}")
         self.resize(900 if mode == "cover" else 800, 600)
-        self.setStyleSheet(Theme.get_stylesheet())
+        self.setStyleSheet(Theme.current_stylesheet())
         
         self.mode = mode
         self.fetcher_callback = fetcher_callback

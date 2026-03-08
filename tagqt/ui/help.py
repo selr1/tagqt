@@ -11,7 +11,7 @@ class HelpDialog(QDialog):
         from PySide6.QtWidgets import QApplication
         self.setWindowIcon(QApplication.instance().windowIcon())
         self.resize(500, 400)
-        self.setStyleSheet(Theme.get_stylesheet())
+        self.setStyleSheet(Theme.current_stylesheet())
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)

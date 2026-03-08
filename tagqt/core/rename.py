@@ -44,7 +44,6 @@ class Renamer:
         Returns a dictionary of extracted tags.
         """
         token_regex = re.compile(r'%(\w+)%')
-        regex_pattern = "^" + re.escape(pattern) + "$"
         
         def replace_token(match):
             tag = match.group(1)

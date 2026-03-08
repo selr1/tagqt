@@ -4,3 +4,4 @@ venv/
 __pycache__/
 tagqt/__pycache__/
 tagqt/core/__pycache__/
+.github/skills/

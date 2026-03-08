@@ -22,13 +22,15 @@ class ToastType:
     WARNING = "warning"
 
 
-# Mapping: type → (accent color, icon char, auto-dismiss ms)
-_TYPE_CONFIG = {
-    ToastType.INFO:    (Theme.BLUE,  "ℹ",  4000),
-    ToastType.SUCCESS: (Theme.GREEN, "✓",  4000),
-    ToastType.WARNING: (Theme.PEACH, "⚠", 6000),
-    ToastType.ERROR:   (Theme.RED,   "✕",  0),  # 0 = manual close
-}
+def _get_type_config(toast_type):
+    """Resolve colors at call time so theme switches take effect."""
+    configs = {
+        ToastType.INFO:    (Theme.BLUE,  "ℹ",  4000),
+        ToastType.SUCCESS: (Theme.GREEN, "✓",  4000),
+        ToastType.WARNING: (Theme.PEACH, "⚠", 6000),
+        ToastType.ERROR:   (Theme.RED,   "✕",  0),
+    }
+    return configs.get(toast_type, configs[ToastType.INFO])
 
 
 class ToastWidget(QWidget):
@@ -39,9 +41,7 @@ class ToastWidget(QWidget):
         self.raise_()
         self.setFixedWidth(320)
 
-        accent, icon_char, auto_ms = _TYPE_CONFIG.get(
-            toast_type, _TYPE_CONFIG[ToastType.INFO]
-        )
+        accent, icon_char, auto_ms = _get_type_config(toast_type)
         if duration is None:
             duration = auto_ms
 

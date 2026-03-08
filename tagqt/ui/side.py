@@ -56,7 +56,9 @@ class Sidebar(QWidget):
         self.cover_label.clicked.connect(self.cover_clicked.emit)
         self.cover_label.setCursor(Qt.PointingHandCursor)
         self.cover_label.setFixedSize(200, 200)
-        self.cover_label.setStyleSheet(f"background-color: {Theme.SURFACE0}; border-radius: {Theme.CORNER_RADIUS};")
+        bg = Theme.LATTE_SURFACE1 if Theme._is_light else Theme.SURFACE0
+        fg = Theme.LATTE_OVERLAY1 if Theme._is_light else Theme.OVERLAY1
+        self.cover_label.setStyleSheet(f"background-color: {bg}; color: {fg}; border-radius: {Theme.CORNER_RADIUS};")
         self.cover_label.setAlignment(Qt.AlignCenter)
         self.cover_label.setText("No cover")
         
@@ -267,7 +269,9 @@ class Sidebar(QWidget):
         self.toggle_btn.setText("Show fewer fields" if checked else "Show more fields")
 
     def apply_theme(self):
-        self.cover_label.setStyleSheet(f"background-color: {Theme.SURFACE0}; border-radius: {Theme.CORNER_RADIUS};")
+        bg = Theme.LATTE_SURFACE1 if Theme._is_light else Theme.SURFACE0
+        fg = Theme.LATTE_OVERLAY1 if Theme._is_light else Theme.OVERLAY1
+        self.cover_label.setStyleSheet(f"background-color: {bg}; color: {fg}; border-radius: {Theme.CORNER_RADIUS};")
         self.resolution_label.setStyleSheet(f"color: {Theme.SUBTEXT0}; font-size: 12px;")
         self.toggle_btn.setStyleSheet(f"background-color: {Theme.SURFACE0}; color: {Theme.SUBTEXT0}; text-align: left; padding: 8px;")
         self.lyrics_label.setStyleSheet(f"font-weight: bold; color: {Theme.SUBTEXT0}; margin-top: 10px;")
@@ -385,7 +389,6 @@ class Sidebar(QWidget):
             
             self.save_btn.setText("Save All Changes")
             self.cancel_global_btn.setVisible(True)
-            # self.reencode_btn.setVisible(True) # Now shared
             
             # Button labels stay the same in global mode - it's already implied
             self.lyrics_btn.setText("Get Lyrics")
@@ -411,7 +414,6 @@ class Sidebar(QWidget):
             
             self.save_btn.setText("Save Changes")
             self.cancel_global_btn.setVisible(False)
-            # self.reencode_btn.setVisible(False) # Support single edit
             
             # Restore original button labels
             self.lyrics_btn.setText("Get Lyrics")

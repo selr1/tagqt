@@ -1,19 +1,15 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QTreeWidget, QTreeWidgetItem, 
-    QPushButton, QHeaderView, QProgressBar, QLabel, 
-    QDialogButtonBox, QWidget
+    QHeaderView, QProgressBar, QLabel, 
+    QDialogButtonBox
 )
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 from tagqt.ui.theme import Theme
+from tagqt.ui.side import ClickableLabel
+import os
 
 class ClickableProgressBar(QProgressBar):
-    clicked = Signal()
-
-    def mousePressEvent(self, event):
-        self.clicked.emit()
-        super().mousePressEvent(event)
-
-class ClickableLabel(QLabel):
     clicked = Signal()
 
     def mousePressEvent(self, event):
@@ -27,7 +23,7 @@ class BatchStatusDialog(QDialog):
         self.setWindowIcon(QApplication.instance().windowIcon())
         self.setWindowTitle(title)
         self.resize(800, 600)
-        self.setStyleSheet(Theme.get_stylesheet())
+        self.setStyleSheet(Theme.current_stylesheet())
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -92,7 +88,6 @@ class BatchStatusDialog(QDialog):
         self.progress_bar.setValue(self.progress_bar.maximum())
 
     def add_result(self, filepath, status, details):
-        import os
         filename = os.path.basename(filepath)
         
         existing_item = None
@@ -110,7 +105,6 @@ class BatchStatusDialog(QDialog):
             item = QTreeWidgetItem([filename, status, details])
             self.tree.addTopLevelItem(item)
         
-        from PySide6.QtGui import QColor
         if status == "Success" or status == "Found" or status == "Updated":
             item.setForeground(1, QColor(Theme.SUCCESS))
         elif status == "Error" or status == "Missing":

@@ -1,7 +1,7 @@
 import sys
 import os
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QIcon, QFont, QFontDatabase, QPixmap
+from PySide6.QtGui import QIcon, QFont, QFontDatabase
 from tagqt.ui.main import MainWindow
 from tagqt.ui.theme import Theme
 
@@ -29,7 +29,7 @@ def main():
             QFontDatabase.addApplicationFont(font_path)
 
     app.setFont(QFont("JetBrains Mono", 10))
-    app.setStyleSheet(Theme.get_stylesheet())
+    app.setStyleSheet(Theme.current_stylesheet())
 
     # Set application icon — load all sizes, Qt picks the best one
     icon = QIcon()

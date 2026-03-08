@@ -1,6 +1,10 @@
 from PySide6.QtCore import QObject, Signal
 from tagqt.core.tags import MetadataHandler
+from tagqt.core.musicbrainz import MusicBrainzClient
+from tagqt.core.case import CaseConverter
+from tagqt.core.flac import FlacEncoder
 import os
+import re
 import time
 import threading
 
@@ -157,8 +161,6 @@ class AutoTagWorker(QObject):
 
     @staticmethod
     def extract_title_from_filename(filepath):
-        import os
-        import re
         basename = os.path.splitext(os.path.basename(filepath))[0]
         cleaned = re.sub(r'^[\d]+[\s.\-_]+', '', basename)
         cleaned = re.sub(r'^\d{1,2}\s*[-_.\s]\s*', '', cleaned)
@@ -167,8 +169,6 @@ class AutoTagWorker(QObject):
 
     def run(self):
         try:
-            from tagqt.core.musicbrainz import MusicBrainzClient
-            
             groups = {}
             skipped_early = 0
             
@@ -557,7 +557,6 @@ class CaseConvertWorker(QObject):
 
     def run(self):
         try:
-            from tagqt.core.case import CaseConverter
             total = len(self.files)
             fields = ['title', 'artist', 'album', 'genre', 'album_artist', 'comment', 'publisher']
             
@@ -608,7 +607,6 @@ class FlacReencodeWorker(QObject):
 
     def run(self):
         try:
-            from tagqt.core.flac import FlacEncoder
             total = len(self.files)
             for i, f in enumerate(self.files):
                 if self._stop_event.is_set(): break

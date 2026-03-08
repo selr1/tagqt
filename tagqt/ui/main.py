@@ -1,6 +1,7 @@
-from PySide6.QtWidgets import QMainWindow, QHBoxLayout, QVBoxLayout, QWidget, QPushButton, QFileDialog, QLabel, QComboBox, QMenuBar, QMenu, QTreeWidgetItemIterator, QDialog, QProgressBar, QSizePolicy, QLineEdit, QSlider
-from PySide6.QtGui import QPixmap, QAction, QShortcut, QKeySequence, QFont, QTextCursor, QTextCharFormat, QColor
-from PySide6.QtCore import Qt, QTimer, QThread, QEvent, QPropertyAnimation, QEasingCurve
+from PySide6.QtWidgets import QMainWindow, QHBoxLayout, QVBoxLayout, QWidget, QPushButton, QFileDialog, QLabel, QComboBox, QMenuBar, QMenu, QTreeWidgetItemIterator, QDialog, QProgressBar, QSizePolicy, QLineEdit, QSlider, QAbstractItemView
+from PySide6.QtGui import QPixmap, QAction, QShortcut, QKeySequence, QFont, QTextCursor, QTextCharFormat, QColor, QPainter
+from PySide6.QtCore import Qt, QTimer, QThread, QPropertyAnimation, QEasingCurve
+from PySide6.QtSvg import QSvgRenderer
 from tagqt.ui.theme import Theme
 from tagqt.ui.tracks import FileList
 from tagqt.ui.side import Sidebar
@@ -8,10 +9,7 @@ from tagqt.core.tags import MetadataHandler
 from tagqt.core.lyric import LyricsFetcher
 from tagqt.core.roman import Romanizer
 from tagqt.core.art import CoverArtManager
-from tagqt.core.case import CaseConverter
-from tagqt.core.rename import Renamer
-from tagqt.core.flac import FlacEncoder, DependencyChecker
-from tagqt.core.musicbrainz import MusicBrainzClient
+from tagqt.core.flac import DependencyChecker
 from tagqt.core.settings import Settings
 from tagqt.ui import dialogs
 from tagqt.ui.batch_status import ClickableProgressBar, BatchStatusDialog, ClickableLabel
@@ -20,7 +18,10 @@ from tagqt.ui.workers import (
     CoverFetchWorker, CoverResizeWorker, RomanizeWorker, CaseConvertWorker,
     FlacReencodeWorker, CsvImportWorker, SaveWorker
 )
+import logging
 import os
+import sys
+import base64
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -58,11 +59,7 @@ class MainWindow(QMainWindow):
         
         header_layout = QHBoxLayout()
         
-        import os
-        from PySide6.QtSvg import QSvgRenderer
-        from PySide6.QtGui import QPixmap, QPainter
         self.title_label = QLabel()
-        import sys
         if hasattr(sys, '_MEIPASS'):
             logo_path = os.path.join(sys._MEIPASS, 'assets', 'logo.svg')
         else:
@@ -251,7 +248,7 @@ class MainWindow(QMainWindow):
         self.player.position_changed.connect(self._on_player_position_changed)
         self.player.lyric_line_changed.connect(self._on_lyric_line_changed)
         self._now_playing_item = None  # track the bolded row
-        self._lyrics_sync_paused = False
+        self._player_follow_paused = False  # pause list+editor+lyrics sync while user edits
         
         player_bar = QWidget()
         player_bar.setStyleSheet(f"""
@@ -314,7 +311,7 @@ class MainWindow(QMainWindow):
         
         self.seek_slider = QSlider(Qt.Horizontal)
         self.seek_slider.setRange(0, 0)
-        self.seek_slider.sliderMoved.connect(self.player.seek)
+        self.seek_slider.sliderMoved.connect(self._on_seek)
         player_bar_layout.addWidget(self.seek_slider, stretch=1)
         
         self.time_label = QLabel("0:00 / 0:00")
@@ -358,14 +355,22 @@ class MainWindow(QMainWindow):
         self.player_bar_widget = player_bar  # store for theme refresh
         main_layout.addWidget(player_bar)
         
-        self.sidebar.lyrics_edit.textChanged.connect(self._on_lyrics_edited)
+        for w in (self.sidebar.title_edit, self.sidebar.artist_edit,
+                  self.sidebar.album_edit, self.sidebar.album_artist_edit,
+                  self.sidebar.year_edit, self.sidebar.genre_edit,
+                  self.sidebar.disc_edit, self.sidebar.track_edit,
+                  self.sidebar.bpm_edit, self.sidebar.key_edit,
+                  self.sidebar.isrc_edit, self.sidebar.publisher_edit,
+                  self.sidebar.comment_edit):
+            w.textChanged.connect(self._on_editor_edited)
+        self.sidebar.lyrics_edit.textChanged.connect(self._on_editor_edited)
         
         # Load saved theme
         if self.settings.get_light_theme():
             Theme.set_light_mode(True)
             self.theme_action.setChecked(True)
         
-        self.setStyleSheet(Theme.get_stylesheet())
+        self._apply_theme()
 
     def setup_shortcuts(self):
         QShortcut(QKeySequence("Ctrl+S"), self, self.save_metadata)
@@ -813,7 +818,7 @@ class MainWindow(QMainWindow):
                     fp = child.data(0, Qt.UserRole)
                     if fp:
                         files.append(fp)
-        return list(set(files)) # Unique
+        return list(dict.fromkeys(files)) # Unique
         
     def get_all_files(self):
         # Helper to get all files in the list
@@ -828,7 +833,7 @@ class MainWindow(QMainWindow):
                 if filepath:
                     files.append(filepath)
             iterator += 1
-        return list(set(files))
+        return list(dict.fromkeys(files))
 
 
 
@@ -868,7 +873,6 @@ class MainWindow(QMainWindow):
             self.progress_bar.setMaximum(100)
             
             if hasattr(self, '_progress_animation'):
-                from PySide6.QtCore import QPropertyAnimation
                 if self._progress_animation.state() == QPropertyAnimation.Running:
                     self._progress_animation.stop()
                 
@@ -892,7 +896,6 @@ class MainWindow(QMainWindow):
             self.file_list.update_file(filepath)
         
     def on_batch_log(self, message):
-        import logging
         logging.getLogger(__name__).debug(message)
     
     def cancel_batch_operation(self):
@@ -918,7 +921,6 @@ class MainWindow(QMainWindow):
     def on_batch_finished(self):
         self.batch_running = False
         self.batch_dialog.set_finished()
-        # self.batch_container.setVisible(False) # Keep visible for persistence
         self.batch_cancel_btn.setVisible(False)
         self.progress_label.setText("Done — click for details")
         self.progress_bar.setValue(self.progress_bar.maximum())
@@ -1249,6 +1251,7 @@ class MainWindow(QMainWindow):
         self.thread.finished.connect(self.thread.deleteLater)
         
         self.worker.finished.connect(self.on_folder_loaded)
+        self.thread.finished.connect(self._cleanup_thread)
         
         # Start
         self.thread.start()
@@ -1311,10 +1314,11 @@ class MainWindow(QMainWindow):
     def _apply_theme(self):
         from PySide6.QtWidgets import QApplication
         QApplication.instance().setPalette(Theme.get_palette())
+        stylesheet = Theme.current_stylesheet()
         
         self.setUpdatesEnabled(False)
         try:
-            stylesheet = Theme.get_stylesheet()
+            QApplication.instance().setStyleSheet(stylesheet)
             self.setStyleSheet(stylesheet)
             self.sidebar.setStyleSheet(stylesheet)
             self.sidebar.apply_theme()
@@ -1322,6 +1326,20 @@ class MainWindow(QMainWindow):
                 self.command_palette.apply_theme()
             
             self.title_label.setStyleSheet("background: transparent;")
+            
+            self.filter_input.setStyleSheet(f"""
+                QLineEdit {{
+                    background-color: {Theme.SURFACE0};
+                    border: 1px solid {Theme.SURFACE1};
+                    border-radius: {Theme.CORNER_RADIUS};
+                    padding: 10px 15px;
+                    color: {Theme.TEXT};
+                    font-size: 13px;
+                }}
+                QLineEdit:focus {{
+                    border: 1px solid {Theme.ACCENT};
+                }}
+            """)
             
             self.batch_cancel_btn.setStyleSheet(f"""
                 QPushButton {{
@@ -1386,7 +1404,7 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'player_bar_widget'):
                 self.player_bar_widget.setStyleSheet(f"""
                     QWidget#playerBar {{
-                        background-color: {Theme.CRUST};
+                        background-color: {Theme.LATTE_MANTLE if Theme._is_light else Theme.CRUST};
                         border-top: 1px solid {Theme.SURFACE1};
                     }}
                 """)
@@ -1436,8 +1454,11 @@ class MainWindow(QMainWindow):
         finally:
             self.setUpdatesEnabled(True)
             for widget in QApplication.instance().topLevelWidgets():
+                widget.setStyleSheet(stylesheet)
                 widget.update()
-                widget.repaint()
+            self.style().unpolish(self)
+            self.style().polish(self)
+            self.update()
 
     def show_hints(self):
         hints_text = """
@@ -1488,12 +1509,8 @@ class MainWindow(QMainWindow):
         dialog.exec()
     
     def show_about(self):
-        import os, base64
-        from PySide6.QtSvg import QSvgRenderer
-        from PySide6.QtGui import QPixmap, QPainter
         from PySide6.QtCore import QBuffer, QIODevice
         
-        import sys
         if hasattr(sys, '_MEIPASS'):
             logo_path = os.path.join(sys._MEIPASS, 'assets', 'logo.svg')
         else:
@@ -1555,7 +1572,7 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
 
     def on_selection_changed(self):
         # Restart timer (debounce) - waits for selection to stabilize
-        self._lyrics_sync_paused = False
+        self._player_follow_paused = False
         self.selection_timer.start(100) # 100ms delay
 
     def _handle_selection_deferred(self):
@@ -1580,6 +1597,20 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
         if not self.metadata:
             return
         
+        # Block signals on all editable fields so programmatic updates
+        # don't trigger _on_editor_edited / pause the follow flag
+        editable = [
+            self.sidebar.title_edit, self.sidebar.artist_edit,
+            self.sidebar.album_edit, self.sidebar.album_artist_edit,
+            self.sidebar.year_edit, self.sidebar.genre_edit,
+            self.sidebar.disc_edit, self.sidebar.track_edit,
+            self.sidebar.comment_edit, self.sidebar.bpm_edit,
+            self.sidebar.key_edit, self.sidebar.isrc_edit,
+            self.sidebar.publisher_edit, self.sidebar.lyrics_edit,
+        ]
+        for w in editable:
+            w.blockSignals(True)
+        
         self.sidebar.title_edit.setText(self.metadata.title)
         self.sidebar.artist_edit.setText(self.metadata.artist)
         self.sidebar.album_edit.setText(self.metadata.album)
@@ -1597,6 +1628,9 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
         self.sidebar.isrc_edit.setText(self.metadata.isrc)
         self.sidebar.publisher_edit.setText(self.metadata.publisher)
         
+        for w in editable:
+            w.blockSignals(False)
+        
         # Load cover
         cover_data = self.metadata.get_cover()
         if cover_data:
@@ -1613,6 +1647,7 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
             'filesize': self.metadata.filesize
         }
         self.sidebar.set_file_specs(specs)
+        self._player_follow_paused = False
 
     def save_metadata(self):
         if getattr(self.sidebar, 'is_global_mode', False):
@@ -1663,7 +1698,7 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
                 self.metadata.save_cover_file(overwrite=True)
                 
             self.show_toast("Saved.")
-            self._lyrics_sync_paused = False
+            self._player_follow_paused = False
             
             # Re-feed lyrics to player in case user edited them
             if hasattr(self, 'player') and self.metadata:
@@ -1799,7 +1834,7 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
         self.player.set_queue(queue, idx)
         self.player.play_pause()
         self._on_player_track_changed(idx)
-        self._lyrics_sync_paused = False
+        self._player_follow_paused = False
 
     def _on_play_btn_clicked(self):
         """Play button clicked — start from selection if nothing queued."""
@@ -1816,8 +1851,11 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
                     start = queue.index(fp)
             self.player.set_queue(queue, start)
             self._on_player_track_changed(start)
-            self._lyrics_sync_paused = False
+            self._player_follow_paused = False
         self.player.play_pause()
+
+    def _on_seek(self, ms):
+        self.player.seek(ms)
 
     def _on_player_state_changed(self, state):
         if state == 'playing':
@@ -1832,13 +1870,15 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
 
     def _on_player_track_changed(self, index):
         queue = self._build_play_queue()
-        if 0 <= index < len(queue):
-            path = queue[index]
-            basename = os.path.basename(path)
-            name, _ = os.path.splitext(basename)
-            self.now_playing_label.setText(name)
-            self.now_playing_label.setToolTip(basename)
-        
+        if not (0 <= index < len(queue)):
+            return
+
+        filepath = queue[index]
+        basename = os.path.basename(filepath)
+        name, _ = os.path.splitext(basename)
+        self.now_playing_label.setText(name)
+        self.now_playing_label.setToolTip(basename)
+
         # Remove bold from previous item
         if self._now_playing_item:
             try:
@@ -1849,34 +1889,34 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
             except RuntimeError:
                 pass
             self._now_playing_item = None
-        
+
         # Bold the new now-playing row
-        if 0 <= index < len(queue):
-            path = queue[index]
-            if path in self.file_list.path_to_item:
-                item = self.file_list.path_to_item[path]
-                font = item.font(0)
-                font.setBold(True)
-                for col in range(item.columnCount()):
-                    item.setFont(col, font)
-                self._now_playing_item = item
-                self.file_list.scrollToItem(item)
-        
-        # Load lyrics for the new track into the player for sync
-        if 0 <= index < len(queue):
-            path = queue[index]
-            try:
-                meta = MetadataHandler(path)
-                lrc_text = meta.lyrics or ''
-                self.player.set_lyrics(lrc_text)
-                
-                # Update the lyrics box to show the new track's lyrics
-                self.sidebar.lyrics_edit.blockSignals(True)
-                self.sidebar.lyrics_edit.setText(lrc_text)
-                self.sidebar.lyrics_edit.blockSignals(False)
-                self._lyrics_sync_paused = False
-            except Exception:
-                self.player.set_lyrics('')
+        if filepath in self.file_list.path_to_item:
+            item = self.file_list.path_to_item[filepath]
+            font = item.font(0)
+            font.setBold(True)
+            for col in range(item.columnCount()):
+                item.setFont(col, font)
+            self._now_playing_item = item
+
+        # Always load lyrics into the player for sync
+        try:
+            meta = MetadataHandler(filepath)
+            raw_lrc = meta.lyrics or ''
+            self.player.set_lyrics(raw_lrc)
+        except Exception as e:
+            print(f"[TagQt] could not load lyrics for track: {e}")
+            self.player.set_lyrics('')
+
+        # If user is editing, leave the list and editor alone
+        if self._player_follow_paused:
+            return
+
+        # Highlight the playing row in the file list
+        self._highlight_playing_row(filepath)
+
+        # Populate the editor with the playing track's metadata
+        self._load_playing_track(filepath)
 
     def _on_player_position_changed(self, current_ms, total_ms):
         if not self.seek_slider.isSliderDown():
@@ -1889,9 +1929,26 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
         
         self.time_label.setText(f"{fmt(current_ms)} / {fmt(total_ms)}")
 
+    def _highlight_playing_row(self, filepath):
+        """Select and scroll to the row matching filepath."""
+        if filepath in self.file_list.path_to_item:
+            item = self.file_list.path_to_item[filepath]
+            self.file_list.blockSignals(True)
+            self.file_list.setCurrentItem(item)
+            self.file_list.scrollToItem(
+                item, QAbstractItemView.ScrollHint.PositionAtCenter
+            )
+            self.file_list.blockSignals(False)
+
+    def _load_playing_track(self, filepath):
+        """Load a track into the editor without triggering the pause flag."""
+        self.current_file = filepath
+        self.metadata = MetadataHandler(filepath)
+        self.populate_sidebar()
+
     def _on_lyric_line_changed(self, index: int):
         """Highlight the current lyric line in the sidebar lyrics editor."""
-        if self._lyrics_sync_paused:
+        if self._player_follow_paused:
             return
 
         lrc_lines = self.player._lrc_lines
@@ -1958,6 +2015,6 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
         finally:
             lyrics_edit.blockSignals(False)
 
-    def _on_lyrics_edited(self):
-        """Pause sync only when the user actually modifies lyrics text."""
-        self._lyrics_sync_paused = True
+    def _on_editor_edited(self):
+        """Pause all player-follow sync while the user edits any field."""
+        self._player_follow_paused = True

@@ -6,6 +6,7 @@ from mutagen.flac import FLAC, Picture
 from mutagen.oggvorbis import OggVorbis
 from mutagen.mp4 import MP4, MP4Cover
 import os
+import base64
 from PIL import Image
 import io
 
@@ -41,6 +42,7 @@ class MetadataHandler:
     def __init__(self, filepath):
         self.filepath = filepath
         self.audio = None
+        self._lyrics_changed = False
         self.load_file()
 
     def load_file(self):
@@ -75,8 +77,9 @@ class MetadataHandler:
         try:
             if self.audio:
                 self.audio.save()
-                if self.lyrics:
+                if self._lyrics_changed and self.lyrics:
                     self.save_lyrics_file()
+                    self._lyrics_changed = False
         except Exception as e:
             print(f"[TagQt] Warning: save failed: {e}")
 
@@ -292,6 +295,8 @@ class MetadataHandler:
         if self.audio is None:
             return
 
+        self._lyrics_changed = True
+
         try:
             # ID3 (MP3)
             if isinstance(self.audio, (ID3, EasyID3)) or (hasattr(self.audio, 'tags') and isinstance(self.audio.tags, (ID3, EasyID3))):
@@ -422,7 +427,6 @@ class MetadataHandler:
                 return pics[0].data if pics else None
 
             elif isinstance(self.audio, OggVorbis):
-                import base64
                 blocks = self.audio.get('metadata_block_picture', [])
                 if blocks:
                     pic = Picture(base64.b64decode(blocks[0]))
@@ -437,7 +441,14 @@ class MetadataHandler:
             print(f"[TagQt] Warning: could not read cover art: {e}")
             return None
 
-    def set_cover(self, data):
+    def set_cover(self, data, max_size=None):
+        if max_size:
+            img = Image.open(io.BytesIO(data))
+            img.thumbnail((max_size, max_size))
+            buf = io.BytesIO()
+            img.save(buf, format='JPEG')
+            data = buf.getvalue()
+
         try:
             if isinstance(self.audio, EasyID3):
                 id3_obj = ID3(self.audio.filename)
@@ -466,7 +477,6 @@ class MetadataHandler:
                 pic.mime = 'image/jpeg'
                 pic.desc = 'Cover'
                 pic.data = data
-                import base64
                 self.audio['metadata_block_picture'] = [
                     base64.b64encode(pic.write()).decode('ascii')
                 ]
