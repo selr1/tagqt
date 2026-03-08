@@ -1,5 +1,5 @@
-from PySide6.QtWidgets import QMainWindow, QHBoxLayout, QVBoxLayout, QWidget, QPushButton, QFileDialog, QLabel, QComboBox, QMenuBar, QMenu, QTreeWidgetItemIterator, QDialog, QProgressBar, QSizePolicy, QLineEdit
-from PySide6.QtGui import QPixmap, QAction, QShortcut, QKeySequence
+from PySide6.QtWidgets import QMainWindow, QHBoxLayout, QVBoxLayout, QWidget, QPushButton, QFileDialog, QLabel, QComboBox, QMenuBar, QMenu, QTreeWidgetItemIterator, QDialog, QProgressBar, QSizePolicy, QLineEdit, QSlider
+from PySide6.QtGui import QPixmap, QAction, QShortcut, QKeySequence, QFont, QTextCursor, QTextCharFormat, QColor
 from PySide6.QtCore import Qt, QTimer, QThread, QEvent, QPropertyAnimation, QEasingCurve
 from tagqt.ui.theme import Theme
 from tagqt.ui.tracks import FileList
@@ -246,6 +246,7 @@ class MainWindow(QMainWindow):
         self.file_list.customContextMenuRequested.connect(self.show_context_menu)
         self.file_list.files_dropped.connect(self.on_files_dropped)
         self.file_list.itemSelectionChanged.connect(self.on_selection_changed)
+        self.file_list.itemDoubleClicked.connect(self._on_tree_double_click)
         left_panel.addWidget(self.file_list)
         
         content_layout.addLayout(left_panel, stretch=2)
@@ -263,6 +264,129 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self.sidebar, stretch=1)
         
         main_layout.addLayout(content_layout)
+        
+        # ── Player Bar ──────────────────────────────────────────────────
+        from tagqt.ui.player import PlayerController
+        self.player = PlayerController(self)
+        self.player.state_changed.connect(self._on_player_state_changed)
+        self.player.track_changed.connect(self._on_player_track_changed)
+        self.player.position_changed.connect(self._on_player_position_changed)
+        self.player.lyric_line_changed.connect(self._on_lyric_line_changed)
+        self._now_playing_item = None  # track the bolded row
+        self._lyrics_sync_paused = False
+        
+        player_bar = QWidget()
+        player_bar.setStyleSheet(f"""
+            QWidget#playerBar {{
+                background-color: {Theme.CRUST};
+                border-top: 1px solid {Theme.SURFACE1};
+            }}
+        """)
+        player_bar.setObjectName("playerBar")
+        player_bar_layout = QHBoxLayout(player_bar)
+        player_bar_layout.setContentsMargins(16, 8, 16, 8)
+        player_bar_layout.setSpacing(10)
+        
+        # Transport buttons
+        btn_style = f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {Theme.TEXT};
+                border: none;
+                font-size: 16px;
+                padding: 4px 8px;
+                min-height: 22px;
+                min-width: 28px;
+            }}
+            QPushButton:hover {{
+                background-color: {Theme.SURFACE0};
+                border-radius: 4px;
+            }}
+            QPushButton:pressed {{
+                background-color: {Theme.SURFACE1};
+            }}
+        """
+        
+        self.btn_prev = QPushButton("⏮")
+        self.btn_prev.setStyleSheet(btn_style)
+        self.btn_prev.setCursor(Qt.PointingHandCursor)
+        self.btn_prev.setToolTip("Previous track")
+        self.btn_prev.clicked.connect(self.player.prev_track)
+        player_bar_layout.addWidget(self.btn_prev)
+        
+        self.btn_play = QPushButton("▶")
+        self.btn_play.setStyleSheet(btn_style)
+        self.btn_play.setCursor(Qt.PointingHandCursor)
+        self.btn_play.setToolTip("Play / Pause")
+        self.btn_play.clicked.connect(self._on_play_btn_clicked)
+        player_bar_layout.addWidget(self.btn_play)
+        
+        self.btn_stop = QPushButton("⏹")
+        self.btn_stop.setStyleSheet(btn_style)
+        self.btn_stop.setCursor(Qt.PointingHandCursor)
+        self.btn_stop.setToolTip("Stop")
+        self.btn_stop.clicked.connect(self.player.stop)
+        player_bar_layout.addWidget(self.btn_stop)
+        
+        self.btn_next = QPushButton("⏭")
+        self.btn_next.setStyleSheet(btn_style)
+        self.btn_next.setCursor(Qt.PointingHandCursor)
+        self.btn_next.setToolTip("Next track")
+        self.btn_next.clicked.connect(self.player.next_track)
+        player_bar_layout.addWidget(self.btn_next)
+        
+        # Seek slider
+        self.seek_slider = QSlider(Qt.Horizontal)
+        self.seek_slider.setRange(0, 0)
+        self.seek_slider.sliderMoved.connect(self.player.seek)
+        player_bar_layout.addWidget(self.seek_slider, stretch=1)
+        
+        # Time label
+        self.time_label = QLabel("0:00 / 0:00")
+        self.time_label.setStyleSheet(f"""
+            QLabel {{
+                color: {Theme.SUBTEXT0};
+                font-size: 11px;
+                background: transparent;
+                border: none;
+                min-width: 80px;
+            }}
+        """)
+        self.time_label.setAlignment(Qt.AlignCenter)
+        player_bar_layout.addWidget(self.time_label)
+        
+        # Volume slider
+        vol_label = QLabel("🔊")
+        vol_label.setStyleSheet(f"color: {Theme.SUBTEXT0}; font-size: 13px; background: transparent; border: none;")
+        player_bar_layout.addWidget(vol_label)
+        self._vol_label = vol_label  # store for theme refresh
+        
+        self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setRange(0, 100)
+        self.volume_slider.setValue(100)
+        self.volume_slider.setFixedWidth(80)
+        self.volume_slider.valueChanged.connect(lambda v: self.player.set_volume(v / 100.0))
+        player_bar_layout.addWidget(self.volume_slider)
+        
+        # Now-playing label
+        self.now_playing_label = QLabel("")
+        self.now_playing_label.setStyleSheet(f"""
+            QLabel {{
+                color: {Theme.SUBTEXT1};
+                font-size: 12px;
+                background: transparent;
+                border: none;
+            }}
+        """)
+        self.now_playing_label.setMinimumWidth(120)
+        self.now_playing_label.setMaximumWidth(300)
+        player_bar_layout.addWidget(self.now_playing_label)
+        
+        self.player_bar_widget = player_bar  # store for theme refresh
+        main_layout.addWidget(player_bar)
+        
+        # Install event filter on sidebar to pause lyrics sync when user edits
+        self.sidebar.installEventFilter(self)
         
         # Load saved theme
         if self.settings.get_light_theme():
@@ -301,6 +425,10 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Warn about unsaved changes and clean up threads before closing."""
+        # Stop player on close
+        if hasattr(self, 'player'):
+            self.player.stop()
+        
         # Check for unsaved changes in single-file mode
         has_unsaved = False
         if self.metadata and not getattr(self.sidebar, 'is_global_mode', False):
@@ -1304,6 +1432,55 @@ class MainWindow(QMainWindow):
                 }}
             """)
             
+            # Player bar theme refresh
+            if hasattr(self, 'player_bar_widget'):
+                self.player_bar_widget.setStyleSheet(f"""
+                    QWidget#playerBar {{
+                        background-color: {Theme.CRUST};
+                        border-top: 1px solid {Theme.SURFACE1};
+                    }}
+                """)
+                
+                transport_style = f"""
+                    QPushButton {{
+                        background-color: transparent;
+                        color: {Theme.TEXT};
+                        border: none;
+                        font-size: 16px;
+                        padding: 4px 8px;
+                        min-height: 22px;
+                        min-width: 28px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {Theme.SURFACE0};
+                        border-radius: 4px;
+                    }}
+                    QPushButton:pressed {{
+                        background-color: {Theme.SURFACE1};
+                    }}
+                """
+                for btn in (self.btn_prev, self.btn_play, self.btn_stop, self.btn_next):
+                    btn.setStyleSheet(transport_style)
+                
+                self.time_label.setStyleSheet(f"""
+                    QLabel {{
+                        color: {Theme.SUBTEXT0};
+                        font-size: 11px;
+                        background: transparent;
+                        border: none;
+                        min-width: 80px;
+                    }}
+                """)
+                self.now_playing_label.setStyleSheet(f"""
+                    QLabel {{
+                        color: {Theme.SUBTEXT1};
+                        font-size: 12px;
+                        background: transparent;
+                        border: none;
+                    }}
+                """)
+                self._vol_label.setStyleSheet(f"color: {Theme.SUBTEXT0}; font-size: 13px; background: transparent; border: none;")
+            
             if hasattr(self, 'toast_manager') and self.toast_manager.current_toast:
                 self.toast_manager.current_toast.close()
         finally:
@@ -1636,3 +1813,187 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
                 self.sidebar.lyrics_edit.setText(lyrics)
             except Exception as e:
                 dialogs.show_error(self, "Couldn't Load Lyrics", f"Something went wrong reading that file. {e}")
+
+    # ── Player helpers ──────────────────────────────────────────────────
+
+    def _build_play_queue(self) -> list[str]:
+        """Return filepaths in the exact visual order of the QTreeWidget."""
+        paths = []
+        iterator = QTreeWidgetItemIterator(self.file_list)
+        while iterator.value():
+            item = iterator.value()
+            if not item.isHidden():
+                filepath = item.data(0, Qt.UserRole)
+                if filepath and isinstance(filepath, str):
+                    paths.append(filepath)
+            iterator += 1
+        return paths
+
+    def _on_tree_double_click(self, item, column):
+        """Start playback from the double-clicked track."""
+        filepath = item.data(0, Qt.UserRole)
+        if not filepath:
+            return
+        queue = self._build_play_queue()
+        if filepath not in queue:
+            return
+        idx = queue.index(filepath)
+        self.player.set_queue(queue, idx)
+        self.player.play_pause()
+        self._on_player_track_changed(idx)
+        self._lyrics_sync_paused = False
+
+    def _on_play_btn_clicked(self):
+        """Play button clicked — start from selection if nothing queued."""
+        if self.player.current_index < 0:
+            queue = self._build_play_queue()
+            if not queue:
+                return
+            # Use selected item if there is one, otherwise start from top
+            selected = self.file_list.selectedItems()
+            start = 0
+            if selected:
+                fp = selected[0].data(0, Qt.UserRole)
+                if fp and fp in queue:
+                    start = queue.index(fp)
+            self.player.set_queue(queue, start)
+            self._on_player_track_changed(start)
+            self._lyrics_sync_paused = False
+        self.player.play_pause()
+
+    def _on_player_state_changed(self, state):
+        if state == 'playing':
+            self.btn_play.setText('⏸')
+            self.btn_play.setToolTip('Pause')
+        else:
+            self.btn_play.setText('▶')
+            self.btn_play.setToolTip('Play')
+        if state == 'stopped' and self.player.current_index >= len(self._build_play_queue()) - 1:
+            self.now_playing_label.setText('')
+            self._clear_lyric_highlights()
+
+    def _on_player_track_changed(self, index):
+        queue = self._build_play_queue()
+        if 0 <= index < len(queue):
+            path = queue[index]
+            basename = os.path.basename(path)
+            name, _ = os.path.splitext(basename)
+            self.now_playing_label.setText(name)
+            self.now_playing_label.setToolTip(basename)
+        
+        # Remove bold from previous item
+        if self._now_playing_item:
+            try:
+                font = self._now_playing_item.font(0)
+                font.setBold(False)
+                for col in range(self._now_playing_item.columnCount()):
+                    self._now_playing_item.setFont(col, font)
+            except RuntimeError:
+                pass
+            self._now_playing_item = None
+        
+        # Bold the new now-playing row
+        if 0 <= index < len(queue):
+            path = queue[index]
+            if path in self.file_list.path_to_item:
+                item = self.file_list.path_to_item[path]
+                font = item.font(0)
+                font.setBold(True)
+                for col in range(item.columnCount()):
+                    item.setFont(col, font)
+                self._now_playing_item = item
+                self.file_list.scrollToItem(item)
+        
+        # Load lyrics for the new track into the player for sync
+        if 0 <= index < len(queue):
+            path = queue[index]
+            try:
+                meta = MetadataHandler(path)
+                lrc_text = meta.lyrics or ''
+                self.player.set_lyrics(lrc_text)
+            except Exception:
+                self.player.set_lyrics('')
+
+    def _on_player_position_changed(self, current_ms, total_ms):
+        if not self.seek_slider.isSliderDown():
+            self.seek_slider.setMaximum(max(total_ms, 0))
+            self.seek_slider.setValue(current_ms)
+        
+        def fmt(ms):
+            s = max(ms, 0) // 1000
+            return f"{s // 60}:{s % 60:02d}"
+        
+        self.time_label.setText(f"{fmt(current_ms)} / {fmt(total_ms)}")
+
+    def _on_lyric_line_changed(self, index: int):
+        """Highlight the current lyric line in the sidebar lyrics editor."""
+        if self._lyrics_sync_paused:
+            return
+
+        lrc_lines = self.player._lrc_lines
+        if not lrc_lines or index < 0 or index >= len(lrc_lines):
+            return
+
+        lyrics_edit = self.sidebar.lyrics_edit
+        if not lyrics_edit.toPlainText():
+            return
+
+        lyrics_edit.blockSignals(True)
+        try:
+            doc = lyrics_edit.document()
+
+            # Clear all existing highlighting
+            cursor_clear = QTextCursor(doc)
+            cursor_clear.select(QTextCursor.SelectionType.Document)
+            fmt_clear = QTextCharFormat()
+            fmt_clear.setBackground(QColor("transparent"))
+            fmt_clear.setForeground(QColor(Theme.TEXT))
+            cursor_clear.setCharFormat(fmt_clear)
+
+            # Navigate to the line by index
+            cursor_line = QTextCursor(doc)
+            cursor_line.movePosition(QTextCursor.MoveOperation.Start)
+            for _ in range(index):
+                cursor_line.movePosition(QTextCursor.MoveOperation.NextBlock)
+
+            # Select the entire line
+            cursor_line.movePosition(
+                QTextCursor.MoveOperation.EndOfBlock,
+                QTextCursor.MoveMode.KeepAnchor
+            )
+
+            # Apply highlight with accent background
+            fmt = QTextCharFormat()
+            fmt.setBackground(QColor(Theme.SURFACE1))
+            fmt.setForeground(QColor(Theme.ACCENT))
+            fmt.setFontWeight(QFont.Weight.Bold)
+            cursor_line.setCharFormat(fmt)
+
+            # Scroll to the highlighted line
+            lyrics_edit.setTextCursor(cursor_line)
+            lyrics_edit.ensureCursorVisible()
+        finally:
+            lyrics_edit.blockSignals(False)
+
+    def _clear_lyric_highlights(self):
+        """Remove all lyric highlight formatting."""
+        lyrics_edit = self.sidebar.lyrics_edit
+        if not lyrics_edit.toPlainText():
+            return
+        lyrics_edit.blockSignals(True)
+        try:
+            cursor = QTextCursor(lyrics_edit.document())
+            cursor.select(QTextCursor.SelectionType.Document)
+            fmt = QTextCharFormat()
+            fmt.setBackground(QColor("transparent"))
+            fmt.setForeground(QColor(Theme.TEXT))
+            cursor.setCharFormat(fmt)
+        finally:
+            lyrics_edit.blockSignals(False)
+
+    def eventFilter(self, obj, event):
+        """Pause lyrics sync when user interacts with the sidebar."""
+        if obj is self.sidebar:
+            if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.FocusIn):
+                self._lyrics_sync_paused = True
+        return super().eventFilter(obj, event)
