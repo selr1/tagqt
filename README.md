@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/tagqt_logo_preview.png" alt="TagQt" width="420"/>
+  <img src="assets/logo.png" alt="TagQt" width="420"/>
 </p>
 
 <p align="center">
