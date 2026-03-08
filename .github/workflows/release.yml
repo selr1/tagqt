@@ -454,6 +454,16 @@ jobs:
                       texttospeech webview scxmldatamodel renderplugins; do
             rm -rf "$dist/PySide6/Qt/plugins/$dir" 2>/dev/null || true
           done
+          echo "=== Restoring unstripped libav libraries ==="
+          PYSIDE6_LIB="/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/PySide6/Qt/lib"
+          for lib in "$PYSIDE6_LIB"/libav*.so* "$PYSIDE6_LIB"/libsw*.so*; do
+            [ -f "$lib" ] || continue
+            dest="$dist/PySide6/Qt/lib/$(basename $lib)"
+            if [ -f "$dest" ]; then
+              cp "$lib" "$dest"
+              echo "Restored: $(basename $lib)"
+            fi
+          done
           echo "Final dist size: $(du -sh dist/TagQt | cut -f1)"
         shell: bash
       - name: Create AppDir structure
