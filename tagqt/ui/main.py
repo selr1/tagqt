@@ -17,8 +17,9 @@ from tagqt.ui.workers import (
     LyricsWorker, AutoTagWorker, FolderLoaderWorker, RenameWorker,
     CoverFetchWorker, CoverResizeWorker, RomanizeWorker, CaseConvertWorker,
     FlacReencodeWorker, CsvImportWorker, SaveWorker, DuplicateScanWorker,
-    BpmDetectWorker, LIBROSA_AVAILABLE
+    BpmDetectWorker, UndoBatchWorker, LIBROSA_AVAILABLE
 )
+from tagqt.core.snapshot import BatchSnapshot
 import logging
 import os
 import sys
@@ -48,6 +49,7 @@ class MainWindow(QMainWindow):
         self._persistent_toast = None # (message, is_batch)
         self.thread = None
         self.worker = None
+        self._undo_snapshot = None
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -567,6 +569,14 @@ class MainWindow(QMainWindow):
         
         edit_menu = menu_bar.addMenu("Edit")
         
+        self.undo_action = QAction("Undo", self)
+        self.undo_action.setShortcut("Ctrl+Z")
+        self.undo_action.setEnabled(False)
+        self.undo_action.triggered.connect(self._undo_last_batch)
+        edit_menu.addAction(self.undo_action)
+        
+        edit_menu.addSeparator()
+        
         global_edit_action = QAction("Edit all visible", self)
         global_edit_action.setShortcut("Ctrl+G")
         global_edit_action.triggered.connect(self.enter_global_mode)
@@ -954,6 +964,8 @@ class MainWindow(QMainWindow):
             dialogs.show_warning(self, "No Files", "Open a folder to load audio files first.")
             return
             
+        self._take_batch_snapshot("Fetch Lyrics", files)
+        
         if not self._prepare_batch("Get Lyrics Status"):
             return
             
@@ -1014,6 +1026,31 @@ class MainWindow(QMainWindow):
         self._persistent_toast = None
         self.show_toast("Canceled.", duration=3000)
         
+    def _take_batch_snapshot(self, operation_name, filepaths):
+        self._undo_snapshot = BatchSnapshot(operation_name, filepaths)
+        self._update_undo_action()
+
+    def _update_undo_action(self):
+        if self._undo_snapshot:
+            self.undo_action.setText(f"Undo {self._undo_snapshot.operation_name}")
+            self.undo_action.setEnabled(True)
+        else:
+            self.undo_action.setText("Undo")
+            self.undo_action.setEnabled(False)
+
+    def _undo_last_batch(self):
+        if not self._undo_snapshot or not self._undo_snapshot.snapshots:
+            return
+        if not self._prepare_batch("Undo Status"):
+            return
+        snapshot = self._undo_snapshot
+        self._undo_snapshot = None
+        self._update_undo_action()
+        self.progress_bar.setRange(0, len(snapshot.snapshots))
+        self._batch_op_label = "Undoing"
+        self.progress_label.setText(f"Undoing {snapshot.operation_name}… 0%")
+        self._start_batch_worker(UndoBatchWorker(snapshot))
+
     def on_batch_finished(self):
         self.batch_running = False
         self.batch_dialog.set_finished()
@@ -1122,6 +1159,8 @@ class MainWindow(QMainWindow):
             dialogs.show_warning(self, "No Files", "Open a folder to load audio files first.")
             return
             
+        self._take_batch_snapshot("Romanize", files)
+        
         if not self._prepare_batch("Romanize Status"):
             return
             
@@ -1196,6 +1235,8 @@ class MainWindow(QMainWindow):
             dialogs.show_warning(self, "No Selection", "Select some files first.")
             return
             
+        self._take_batch_snapshot("Case Conversion", files)
+        
         if not self._prepare_batch("Case Conversion Status"):
             return
             
@@ -1487,6 +1528,8 @@ class MainWindow(QMainWindow):
             dialogs.show_warning(self, "Couldn't Import", error)
             return
         
+        self._take_batch_snapshot("CSV Import", [r['filepath'] for r in rows if r.get('filepath')])
+        
         if not self._prepare_batch("CSV Import Status"):
             return
             
@@ -1532,6 +1575,8 @@ class MainWindow(QMainWindow):
             return
             
         skip_existing = (clicked == skip_btn)
+        
+        self._take_batch_snapshot("Auto-Tag", files)
         
         if not self._prepare_batch("Auto-Tag Status"):
             return
@@ -2024,6 +2069,8 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
                 self.show_toast("Nothing changed.")
                 return
                 
+            self._take_batch_snapshot("Global Save", files)
+            
             if not self._prepare_batch("Global Save Status"):
                 return
             self.progress_bar.setRange(0, len(files))

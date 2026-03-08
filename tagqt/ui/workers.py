@@ -745,3 +745,36 @@ class BpmDetectWorker(QThread):
             self.finished.emit(bpm)
         except Exception as e:
             self.failed.emit(str(e))
+
+
+class UndoBatchWorker(QObject):
+    progress = Signal(int, int)
+    result = Signal(str, str, str)
+    finished = Signal()
+
+    def __init__(self, snapshot):
+        super().__init__()
+        self.snapshot = snapshot
+        self._stop_event = threading.Event()
+
+    def stop(self):
+        self._stop_event.set()
+
+    def run(self):
+        items = list(self.snapshot.snapshots.items())
+        total = len(items)
+        try:
+            for i, (filepath, tags) in enumerate(items):
+                if self._stop_event.is_set():
+                    break
+                try:
+                    md = MetadataHandler(filepath)
+                    for field, value in tags.items():
+                        setattr(md, field, value)
+                    md.save()
+                    self.result.emit(filepath, "Success", "Tags restored")
+                except Exception as e:
+                    self.result.emit(filepath, "Error", str(e))
+                self.progress.emit(i + 1, total)
+        finally:
+            self.finished.emit()
