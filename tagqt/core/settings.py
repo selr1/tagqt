@@ -39,3 +39,9 @@ class Settings:
     def set_hidden_columns(self, columns):
         self.settings.setValue("hidden_columns", columns)
 
+    def get_last_folder(self):
+        return self.settings.value("last_folder", "")
+
+    def set_last_folder(self, folder):
+        self.settings.setValue("last_folder", folder)
+

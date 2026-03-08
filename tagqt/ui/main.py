@@ -24,6 +24,8 @@ import sys
 import base64
 
 class MainWindow(QMainWindow):
+    AUDIO_EXTENSIONS = ('.mp3', '.flac', '.ogg', '.wav', '.m4a', '.aac', '.wma', '.opus')
+
     def __init__(self):
         super().__init__()
         from PySide6.QtWidgets import QApplication
@@ -48,6 +50,9 @@ class MainWindow(QMainWindow):
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
+        self.setAcceptDrops(True)
+        self._drag_active = False
+        central_widget.setObjectName("centralDropTarget")
         
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(30, 30, 30, 30)
@@ -222,6 +227,8 @@ class MainWindow(QMainWindow):
         self.file_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_list.customContextMenuRequested.connect(self.show_context_menu)
         self.file_list.files_dropped.connect(self.on_files_dropped)
+        self.file_list.setAcceptDrops(False)
+        self.file_list.setDragDropMode(QAbstractItemView.NoDragDrop)
         self.file_list.itemSelectionChanged.connect(self.on_selection_changed)
         self.file_list.itemDoubleClicked.connect(self._on_tree_double_click)
         left_panel.addWidget(self.file_list)
@@ -371,6 +378,14 @@ class MainWindow(QMainWindow):
             self.theme_action.setChecked(True)
         
         self._apply_theme()
+
+        # Restore last opened folder on startup
+        QTimer.singleShot(0, self._restore_last_folder)
+
+    def _restore_last_folder(self):
+        last = self.settings.get_last_folder()
+        if last and os.path.isdir(last):
+            self.load_folder(last)
 
     def setup_shortcuts(self):
         QShortcut(QKeySequence("Ctrl+S"), self, self.save_metadata)
@@ -1261,6 +1276,7 @@ class MainWindow(QMainWindow):
         self.file_list.clear_files()
         if results:
             self.file_list.add_files(results)
+            self.settings.set_last_folder(folder_path)
         
         self.settings.add_recent_folder(folder_path)
         self.update_recent_menu()
@@ -1561,6 +1577,52 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
                 self.file_list.add_file(f)
             # Load the first one
             self.load_file(files[0])
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            self._set_drag_highlight(True)
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self._set_drag_highlight(False)
+
+    def dropEvent(self, event):
+        self._set_drag_highlight(False)
+        urls = event.mimeData().urls()
+        if not urls:
+            event.ignore()
+            return
+
+        paths = [url.toLocalFile() for url in urls if url.toLocalFile()]
+        folders = [p for p in paths if os.path.isdir(p)]
+        files = [p for p in paths if os.path.isfile(p) and p.lower().endswith(self.AUDIO_EXTENSIONS)]
+
+        if folders:
+            self.load_folder(folders[0])
+            event.acceptProposedAction()
+        elif files:
+            self.on_files_dropped(files)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def _set_drag_highlight(self, active):
+        self._drag_active = active
+        cw = self.centralWidget()
+        if active:
+            h = Theme.ACCENT.lstrip('#')
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            cw.setStyleSheet(f"#centralDropTarget {{ border: 2px solid rgba({r}, {g}, {b}, 77); }}")
+        else:
+            cw.setStyleSheet("")
 
     def on_filter_changed(self, text):
         """Debounce filter input to avoid refiltering on every keystroke."""
