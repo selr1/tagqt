@@ -5,6 +5,8 @@ from tagqt.ui.theme import Theme
 class SearchResultsDialog(QDialog):
     def __init__(self, results, parent=None, mode="lyrics"):
         super().__init__(parent)
+        from PySide6.QtWidgets import QApplication
+        self.setWindowIcon(QApplication.instance().windowIcon())
         self.setWindowTitle(f"Select {mode.capitalize()}")
         self.resize(700, 450)
         self.setStyleSheet(Theme.get_stylesheet())

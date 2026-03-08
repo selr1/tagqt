@@ -23,6 +23,8 @@ class ClickableLabel(QLabel):
 class BatchStatusDialog(QDialog):
     def __init__(self, parent=None, title="Batch Operation"):
         super().__init__(parent)
+        from PySide6.QtWidgets import QApplication
+        self.setWindowIcon(QApplication.instance().windowIcon())
         self.setWindowTitle(title)
         self.resize(800, 600)
         self.setStyleSheet(Theme.get_stylesheet())

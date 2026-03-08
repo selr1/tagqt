@@ -7,6 +7,8 @@ import os
 class RenamerDialog(QDialog):
     def __init__(self, files, parent=None):
         super().__init__(parent)
+        from PySide6.QtWidgets import QApplication
+        self.setWindowIcon(QApplication.instance().windowIcon())
         self.setWindowTitle("Rename Files")
         self.resize(600, 500)
         self.setStyleSheet(Theme.get_stylesheet())

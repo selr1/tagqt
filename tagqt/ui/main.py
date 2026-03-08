@@ -25,6 +25,8 @@ import os
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        from PySide6.QtWidgets import QApplication
+        self.setWindowIcon(QApplication.instance().windowIcon())
         self.setWindowTitle("TagQt")
         self.resize(1200, 800)
         
@@ -66,7 +68,11 @@ class MainWindow(QMainWindow):
         from PySide6.QtSvg import QSvgRenderer
         from PySide6.QtGui import QPixmap, QPainter
         self.title_label = QLabel()
-        logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'assets', 'logo.svg')
+        import sys
+        if hasattr(sys, '_MEIPASS'):
+            logo_path = os.path.join(sys._MEIPASS, 'assets', 'logo.svg')
+        else:
+            logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'assets', 'logo.svg')
         renderer = QSvgRenderer(logo_path)
         svg_size = renderer.defaultSize()
         target_h = 32
@@ -1356,7 +1362,11 @@ class MainWindow(QMainWindow):
         from PySide6.QtGui import QPixmap, QPainter
         from PySide6.QtCore import QBuffer, QIODevice
         
-        logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'assets', 'logo.svg')
+        import sys
+        if hasattr(sys, '_MEIPASS'):
+            logo_path = os.path.join(sys._MEIPASS, 'assets', 'logo.svg')
+        else:
+            logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'assets', 'logo.svg')
         renderer = QSvgRenderer(logo_path)
         svg_size = renderer.defaultSize()
         target_h = 48

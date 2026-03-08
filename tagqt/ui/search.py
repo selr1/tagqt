@@ -29,6 +29,8 @@ class ImageLoaderWorker(QObject):
 class UnifiedSearchDialog(QDialog):
     def __init__(self, parent=None, mode="lyrics", initial_artist="", initial_title="", initial_album="", fetcher_callback=None):
         super().__init__(parent)
+        from PySide6.QtWidgets import QApplication
+        self.setWindowIcon(QApplication.instance().windowIcon())
         self.setWindowTitle(f"Get {mode.capitalize()}{'s' if mode == 'cover' else ''}")
         self.resize(900 if mode == "cover" else 800, 600)
         self.setStyleSheet(Theme.get_stylesheet())

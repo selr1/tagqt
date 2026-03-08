@@ -10,6 +10,8 @@ from tagqt.ui.theme import Theme
 class CommandPalette(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        from PySide6.QtWidgets import QApplication
+        self.setWindowIcon(QApplication.instance().windowIcon())
         self.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
         self.setModal(True)
         self.setFixedWidth(500)

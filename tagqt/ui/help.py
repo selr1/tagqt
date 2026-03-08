@@ -8,6 +8,8 @@ from tagqt.ui.theme import Theme
 class HelpDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        from PySide6.QtWidgets import QApplication
+        self.setWindowIcon(QApplication.instance().windowIcon())
         self.resize(500, 400)
         self.setStyleSheet(Theme.get_stylesheet())
         
