@@ -473,6 +473,9 @@ class MainWindow(QMainWindow):
                     pass
         except Exception:
             pass
+        if hasattr(self, '_bpm_worker') and self._bpm_worker.isRunning():
+            self._bpm_worker.quit()
+            self._bpm_worker.wait(2000)
         event.accept()
         super().closeEvent(event)
 
@@ -964,10 +967,10 @@ class MainWindow(QMainWindow):
             dialogs.show_warning(self, "No Files", "Open a folder to load audio files first.")
             return
             
-        self._take_batch_snapshot("Fetch Lyrics", files)
-        
         if not self._prepare_batch("Get Lyrics Status"):
             return
+        
+        self._take_batch_snapshot("Fetch Lyrics", files)
             
         self.progress_bar.setRange(0, len(files))
         self._batch_op_label = "Fetching lyrics"
@@ -1019,6 +1022,7 @@ class MainWindow(QMainWindow):
             self._on_cancel_complete()
 
     def _on_cancel_complete(self):
+        self.batch_running = False
         self.batch_container.setVisible(False)
         self.batch_cancel_btn.setVisible(False)
         self.batch_cancel_btn.setEnabled(True)
@@ -1159,10 +1163,10 @@ class MainWindow(QMainWindow):
             dialogs.show_warning(self, "No Files", "Open a folder to load audio files first.")
             return
             
-        self._take_batch_snapshot("Romanize", files)
-        
         if not self._prepare_batch("Romanize Status"):
             return
+        
+        self._take_batch_snapshot("Romanize", files)
             
         self.progress_bar.setRange(0, len(files))
         self._batch_op_label = "Romanizing lyrics"
@@ -1235,10 +1239,10 @@ class MainWindow(QMainWindow):
             dialogs.show_warning(self, "No Selection", "Select some files first.")
             return
             
-        self._take_batch_snapshot("Case Conversion", files)
-        
         if not self._prepare_batch("Case Conversion Status"):
             return
+        
+        self._take_batch_snapshot("Case Conversion", files)
             
         self.progress_bar.setRange(0, len(files))
         self._batch_op_label = "Converting case"
@@ -1528,10 +1532,10 @@ class MainWindow(QMainWindow):
             dialogs.show_warning(self, "Couldn't Import", error)
             return
         
-        self._take_batch_snapshot("CSV Import", [r['filepath'] for r in rows if r.get('filepath')])
-        
         if not self._prepare_batch("CSV Import Status"):
             return
+        
+        self._take_batch_snapshot("CSV Import", [r['filepath'] for r in rows if r.get('filepath')])
             
         self.progress_bar.setRange(0, len(rows))
         self._batch_op_label = "Importing CSV"
@@ -1566,7 +1570,7 @@ class MainWindow(QMainWindow):
         cancel_btn = msg.addButton("Cancel", QMessageBox.RejectRole)
         
         msg.setDefaultButton(skip_btn)
-        msg.setStyleSheet(self.styleSheet())
+        msg.setStyleSheet(Theme.current_stylesheet())
         
         msg.exec()
         
@@ -1576,10 +1580,10 @@ class MainWindow(QMainWindow):
             
         skip_existing = (clicked == skip_btn)
         
-        self._take_batch_snapshot("Auto-Tag", files)
-        
         if not self._prepare_batch("Auto-Tag Status"):
             return
+        
+        self._take_batch_snapshot("Auto-Tag", files)
             
         self.progress_bar.setRange(0, len(files))
         self._batch_op_label = "Auto-tagging"
@@ -1920,9 +1924,8 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
 
     def on_files_dropped(self, files):
         if files:
-            for f in files:
-                self.file_list.add_file(f)
-            # Load the first one
+            self.file_list.add_files(files)
+            self.file_list.update_missing_indicators()
             self.load_file(files[0])
 
     def dragEnterEvent(self, event):
@@ -2069,10 +2072,11 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
                 self.show_toast("Nothing changed.")
                 return
                 
-            self._take_batch_snapshot("Global Save", files)
-            
             if not self._prepare_batch("Global Save Status"):
                 return
+            
+            self._take_batch_snapshot("Global Save", files)
+            
             self.progress_bar.setRange(0, len(files))
             self._batch_op_label = "Saving changes"
             self.progress_label.setText("Saving changes… 0%")
@@ -2134,7 +2138,9 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
         self._bpm_worker.start()
 
     def _on_bpm_detected(self, bpm):
+        self.sidebar.bpm_edit.blockSignals(True)
         self.sidebar.bpm_edit.setText(str(bpm))
+        self.sidebar.bpm_edit.blockSignals(False)
         self.sidebar.bpm_detect_btn.setText("Detect")
         self.sidebar.bpm_detect_btn.setEnabled(True)
         self.show_toast(f"Detected BPM: {bpm}")
