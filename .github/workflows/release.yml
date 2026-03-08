@@ -193,16 +193,21 @@ jobs:
 
       - name: Clean bloat from dist
         run: |
-          $dist = "dist\TagQt"
+          $dist = "dist\TagQt\_internal"
           Remove-Item "$dist\PySide6\Qt\translations" -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item "$dist\PySide6\Qt\resources" -Recurse -Force -ErrorAction SilentlyContinue
-          Get-ChildItem "$dist" -Recurse -Filter "*.pyi" | Remove-Item -Force
-          $unused = @("qmllint","qmltooling","designer","assetimporters","sceneparsers","renderers","sqldrivers","canbus","geoservices","geometryloaders","position","sensors","texttospeech","webview","scxmldatamodel","renderplugins")
+          Get-ChildItem "$dist" -Recurse -Filter "*.pyi" | Remove-Item -Force -ErrorAction SilentlyContinue
+          $unused = @(
+            "qmllint","qmltooling","designer","assetimporters",
+            "sceneparsers","renderers","sqldrivers","canbus",
+            "geoservices","geometryloaders","position","sensors",
+            "texttospeech","webview","scxmldatamodel","renderplugins"
+          )
           foreach ($dir in $unused) {
             Remove-Item "$dist\PySide6\Qt\plugins\$dir" -Recurse -Force -ErrorAction SilentlyContinue
           }
-          $size = [math]::Round((Get-ChildItem $dist -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
-          Write-Output "Cleaned dist size: $size MB"
+          $size = (Get-ChildItem "dist\TagQt" -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
+          Write-Host "Cleaned dist size: $([math]::Round($size, 1)) MB"
         shell: pwsh
 
       - name: Install Inno Setup
@@ -442,14 +447,17 @@ jobs:
 
       - name: Clean bloat from dist
         run: |
-          dist="dist/TagQt"
+          dist="dist/TagQt/_internal"
           rm -rf "$dist/PySide6/Qt/translations"
           rm -rf "$dist/PySide6/Qt/resources"
           find "$dist" -name "*.pyi" -delete
-          for dir in qmllint qmltooling designer assetimporters sceneparsers renderers sqldrivers canbus geoservices geometryloaders position sensors texttospeech webview scxmldatamodel renderplugins; do
+          for dir in qmllint qmltooling designer assetimporters \
+                      sceneparsers renderers sqldrivers canbus \
+                      geoservices geometryloaders position sensors \
+                      texttospeech webview scxmldatamodel renderplugins; do
             rm -rf "$dist/PySide6/Qt/plugins/$dir"
           done
-          echo "Cleaned dist size: $(du -sh $dist | cut -f1)"
+          echo "Cleaned dist size: $(du -sh dist/TagQt | cut -f1)"
 
       - name: Create AppDir structure
         run: |
