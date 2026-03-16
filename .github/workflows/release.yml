@@ -171,6 +171,7 @@ jobs:
             --hidden-import koroman ^
             --collect-data certifi ^
             --collect-data koroman ^
+            --collect-all syncedlyrics ^
             main.py
         shell: cmd
 
@@ -411,6 +412,7 @@ jobs:
             --hidden-import tagqt.core.snapshot \
             --hidden-import certifi \
             --collect-data certifi \
+            --collect-all syncedlyrics \
             main.py
 
       - name: Clean bloat from dist
@@ -434,31 +436,32 @@ jobs:
           cp -r dist/TagQt/* TagQt.AppDir/usr/bin/
 
           # Root icon (required by AppImage spec — must match Icon= in .desktop)
-          cp assets/icons/logo_256.png TagQt.AppDir/logo.png
+          cp assets/icons/logo_256.png TagQt.AppDir/io.github.selr1.tagqt.png
           cp assets/icons/logo_256.png TagQt.AppDir/TagQt.png
 
           # Icon hierarchy for system integration
           for size in 16 32 48 64 128 256 512; do
             dir="TagQt.AppDir/usr/share/icons/hicolor/${size}x${size}/apps"
             mkdir -p "$dir"
-            cp "assets/icons/logo_${size}.png" "$dir/logo.png"
+            cp "assets/icons/logo_${size}.png" "$dir/io.github.selr1.tagqt.png"
           done
           mkdir -p TagQt.AppDir/usr/share/icons/hicolor/scalable/apps
-          cp assets/icons/logo_icon.svg TagQt.AppDir/usr/share/icons/hicolor/scalable/apps/logo.svg
+          cp assets/icons/logo_icon.svg TagQt.AppDir/usr/share/icons/hicolor/scalable/apps/io.github.selr1.tagqt.svg
 
           # Create .desktop file
-          cat > TagQt.AppDir/TagQt.desktop << EOF
+          cat > TagQt.AppDir/io.github.selr1.tagqt.desktop << EOF
           [Desktop Entry]
           Type=Application
           Name=TagQt
           GenericName=Music Tag Editor
           Exec=TagQt
-          Icon=logo
+          Icon=io.github.selr1.tagqt
+          StartupWMClass=io.github.selr1.tagqt
           Categories=Audio;AudioVideo;Music;
           Comment=A music metadata editor built with Python and Qt
           Keywords=music;tag;metadata;mp3;flac;audio;
           EOF
-          sed -i 's/^          //' TagQt.AppDir/TagQt.desktop
+          sed -i 's/^          //' TagQt.AppDir/io.github.selr1.tagqt.desktop
 
       - name: Create AppRun
         run: |

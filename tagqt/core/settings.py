@@ -24,12 +24,27 @@ class Settings:
     def clear_recent_folders(self):
         self.settings.setValue("recent_folders", [])
     
-    def get_light_theme(self):
-        return self.settings.value("light_theme", False, type=bool)
+    def get_flavor(self):
+        return self.settings.value("theme_flavor", "mocha")
     
-    def set_light_theme(self, enabled):
-        self.settings.setValue("light_theme", enabled)
+    def set_flavor(self, flavor):
+        self.settings.setValue("theme_flavor", flavor)
     
+    def get_lyrics_providers(self) -> list[str]:
+        """
+        Return the list of enabled provider keys in user-defined order.
+        Defaults to all three enabled.
+        """
+        default = ["syncedlyrics_word", "syncedlyrics_line", "lrclib"]
+        val = self.settings.value("lyrics_providers", default)
+        # QSettings may deserialize as a single string if only one item was saved
+        if isinstance(val, str):
+            val = [val]
+        return val if val else default
+
+    def set_lyrics_providers(self, providers: list[str]):
+        self.settings.setValue("lyrics_providers", providers)
+
     def get_hidden_columns(self):
         cols = self.settings.value("hidden_columns", [])
         if isinstance(cols, str):

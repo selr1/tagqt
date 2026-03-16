@@ -380,9 +380,11 @@ class MainWindow(QMainWindow):
         self.sidebar.lyrics_edit.textChanged.connect(self._on_editor_edited)
         
         # Load saved theme
-        if self.settings.get_light_theme():
-            Theme.set_light_mode(True)
-            self.theme_action.setChecked(True)
+        saved_flavor = self.settings.get_flavor()
+        if saved_flavor != "mocha":
+            Theme.set_flavor(saved_flavor)
+        for flavor, action in self._flavor_actions.items():
+            action.setChecked(flavor == saved_flavor)
         
         self._apply_theme()
 
@@ -411,7 +413,13 @@ class MainWindow(QMainWindow):
             {"name": "Re-encode FLAC", "shortcut": "", "callback": self.reencode_flac_selected},
             {"name": "Romanize lyrics", "shortcut": "", "callback": self.romanize_all},
             {"name": "Resize covers", "shortcut": "", "callback": self.resize_all_covers},
-            {"name": "Toggle theme", "shortcut": "", "callback": lambda: self.toggle_theme(not Theme._is_light)},
+            {"name": "Theme: Latte", "shortcut": "", "callback": lambda: self.set_theme_flavor("latte")},
+            {"name": "Theme: Frappé", "shortcut": "", "callback": lambda: self.set_theme_flavor("frappe")},
+            {"name": "Theme: Macchiato", "shortcut": "", "callback": lambda: self.set_theme_flavor("macchiato")},
+            {"name": "Theme: Mocha", "shortcut": "", "callback": lambda: self.set_theme_flavor("mocha")},
+            {"name": "Lyrics: Toggle Musixmatch Word Synced", "shortcut": "", "callback": lambda: self._toggle_provider_action("syncedlyrics_word")},
+            {"name": "Lyrics: Toggle Musixmatch Line Synced", "shortcut": "", "callback": lambda: self._toggle_provider_action("syncedlyrics_line")},
+            {"name": "Lyrics: Toggle LRCLIB", "shortcut": "", "callback": lambda: self._toggle_provider_action("lrclib")},
             {"name": "Exit global edit", "shortcut": "Escape", "callback": self.exit_global_mode},
             {"name": "Hints and tips", "shortcut": "", "callback": self.show_hints},
             {"name": "About TagQt", "shortcut": "", "callback": self.show_about},
@@ -667,6 +675,24 @@ class MainWindow(QMainWindow):
         find_dupes_action = QAction("Find Duplicates", self)
         find_dupes_action.triggered.connect(self.find_duplicates)
         tools_menu.addAction(find_dupes_action)
+
+        tools_menu.addSeparator()
+        providers_menu = tools_menu.addMenu("Lyrics Providers")
+
+        self._provider_actions: dict[str, QAction] = {}
+        _provider_labels = {
+            "syncedlyrics_word": "Musixmatch \u2014 Word Synced",
+            "syncedlyrics_line": "Musixmatch \u2014 Line Synced",
+            "lrclib":            "LRCLIB",
+        }
+        enabled_providers = self.settings.get_lyrics_providers()
+
+        for key, label in _provider_labels.items():
+            action = providers_menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(key in enabled_providers)
+            action.toggled.connect(lambda checked, k=key: self._on_provider_toggled(k, checked))
+            self._provider_actions[key] = action
         
         view_menu = menu_bar.addMenu("View")
         
@@ -692,10 +718,19 @@ class MainWindow(QMainWindow):
         
         appearance_menu = view_menu.addMenu("Appearance")
         
-        self.theme_action = QAction("Light Theme", self)
-        self.theme_action.setCheckable(True)
-        self.theme_action.triggered.connect(self.toggle_theme)
-        appearance_menu.addAction(self.theme_action)
+        from tagqt.ui.theme import FLAVORS, FLAVOR_LABELS
+        from PySide6.QtGui import QActionGroup
+        theme_menu = appearance_menu.addMenu("Theme")
+        flavor_group = QActionGroup(self)
+        flavor_group.setExclusive(True)
+        self._flavor_actions = {}
+        for flv in FLAVORS:
+            action = QAction(FLAVOR_LABELS[flv], self)
+            action.setCheckable(True)
+            action.triggered.connect(lambda checked, f=flv: self.set_theme_flavor(f))
+            flavor_group.addAction(action)
+            theme_menu.addAction(action)
+            self._flavor_actions[flv] = action
         
 
         
@@ -1695,12 +1730,39 @@ class MainWindow(QMainWindow):
         self.settings.clear_recent_folders()
         self.update_recent_menu()
 
-    def toggle_theme(self, checked):
-        Theme.set_light_mode(checked)
-        self.settings.set_light_theme(checked)
-        if hasattr(self, 'theme_action') and self.theme_action.isChecked() != checked:
-            self.theme_action.setChecked(checked)
+    def set_theme_flavor(self, flavor):
+        Theme.set_flavor(flavor)
+        self.settings.set_flavor(flavor)
+        for flv, action in self._flavor_actions.items():
+            action.setChecked(flv == flavor)
         self._apply_theme()
+
+    def _on_provider_toggled(self, key: str, checked: bool):
+        """
+        Update the persisted provider list when the user checks or unchecks a provider.
+        At least one provider must remain enabled — silently re-check if the user
+        tries to uncheck the last one.
+        """
+        providers = self.settings.get_lyrics_providers()
+
+        if checked and key not in providers:
+            providers.append(key)
+        elif not checked and key in providers:
+            providers.remove(key)
+
+        # Prevent disabling all providers
+        if not providers:
+            providers = [key]
+            self._provider_actions[key].blockSignals(True)
+            self._provider_actions[key].setChecked(True)
+            self._provider_actions[key].blockSignals(False)
+
+        self.settings.set_lyrics_providers(providers)
+
+    def _toggle_provider_action(self, key: str):
+        action = self._provider_actions.get(key)
+        if action:
+            action.setChecked(not action.isChecked())
 
     def _apply_theme(self):
         from PySide6.QtWidgets import QApplication
@@ -1795,7 +1857,7 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'player_bar_widget'):
                 self.player_bar_widget.setStyleSheet(f"""
                     QWidget#playerBar {{
-                        background-color: {Theme.LATTE_MANTLE if Theme._is_light else Theme.CRUST};
+                        background-color: {Theme.MANTLE if Theme.is_light() else Theme.CRUST};
                         border-top: 1px solid {Theme.SURFACE1};
                     }}
                 """)
@@ -2203,15 +2265,20 @@ auto-tag from MusicBrainz, batch rename files — all in one place.</p>
         album = self.sidebar.album_edit.text()
         
         from tagqt.ui.search import UnifiedSearchDialog
-        
+
+        providers = self.settings.get_lyrics_providers()
+
         def search_callback(a, t, al):
-            return self.lyrics_fetcher.search_lyrics(a, t, al)
-            
+            return self.lyrics_fetcher.search_with_providers(a, t, al, providers)
+
         dialog = UnifiedSearchDialog(self, mode="lyrics", initial_artist=artist, initial_title=title, initial_album=album, fetcher_callback=search_callback)
         
         if dialog.exec() == QDialog.Accepted and dialog.selected_result:
             res = dialog.selected_result
             lyrics = res.get("syncedLyrics") or res.get("plainLyrics")
+            # raw LRC is stored including any <mm:ss.xx> word timestamps.
+            # Line level sync in _on_lyric_line_changed uses source_line offsets
+            # so inline word tags do not affect highlighting.
             if lyrics:
                 self.sidebar.lyrics_edit.setText(lyrics)
                 self.show_toast("Lyrics loaded — save to keep them.")

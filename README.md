@@ -23,11 +23,11 @@
 
 TagQt is a desktop music metadata editor for Windows and Linux. It reads and writes tags for MP3, FLAC, OGG, M4A, and WAV files. You can edit files one at a time or select multiple files and apply changes in bulk.
 
-The interface uses the Catppuccin Mocha color theme with an optional light mode. There is a command palette (`Ctrl+K`) for quick access to every action.
+The interface uses the Catppuccin color theme with four flavors: Latte, Frappé, Macchiato, and Mocha. There is a command palette (`Ctrl+K`) for quick access to every action.
 
 ## Features
 
-TagQt can auto-tag files from MusicBrainz, filling in artist, album, year, track number, and genre. It fetches synced and plain lyrics from LRCLIB and can search and download album artwork with configurable cover resolution.
+TagQt can auto-tag files from MusicBrainz, filling in artist, album, year, track number, and genre. It fetches lyrics from multiple providers including Musixmatch (word-synced and line-synced) and LRCLIB. Provider order and selection are configurable. It can search and download album artwork with configurable cover resolution.
 
 A built-in music player lets you play through your tracks in display order. When a track has LRC timestamps in its lyrics, the lyrics box highlights the current line in sync with playback.
 
@@ -74,6 +74,7 @@ python main.py
 | `requests`       | HTTP requests for lyrics, covers, and MusicBrainz |
 | `musicbrainzngs` | MusicBrainz API client                            |
 | `koroman`        | Korean and CJK romanization                       |
+| `syncedlyrics`   | Musixmatch lyrics provider                        |
 
 Optional: `ffmpeg` is needed for FLAC re-encoding and must be on your PATH.
 

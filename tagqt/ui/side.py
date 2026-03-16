@@ -57,8 +57,8 @@ class Sidebar(QWidget):
         self.cover_label.clicked.connect(self.cover_clicked.emit)
         self.cover_label.setCursor(Qt.PointingHandCursor)
         self.cover_label.setFixedSize(200, 200)
-        bg = Theme.LATTE_SURFACE1 if Theme._is_light else Theme.SURFACE0
-        fg = Theme.LATTE_OVERLAY1 if Theme._is_light else Theme.OVERLAY1
+        bg = Theme.SURFACE0
+        fg = Theme.OVERLAY1
         self.cover_label.setStyleSheet(f"background-color: {bg}; color: {fg}; border-radius: {Theme.CORNER_RADIUS};")
         self.cover_label.setAlignment(Qt.AlignCenter)
         self.cover_label.setText("No cover")
@@ -302,8 +302,8 @@ class Sidebar(QWidget):
         self.toggle_btn.setText("Hide fields ▾" if checked else "Show more fields ▸")
 
     def apply_theme(self):
-        bg = Theme.LATTE_SURFACE1 if Theme._is_light else Theme.SURFACE0
-        fg = Theme.LATTE_OVERLAY1 if Theme._is_light else Theme.OVERLAY1
+        bg = Theme.SURFACE0
+        fg = Theme.OVERLAY1
         self.cover_label.setStyleSheet(f"background-color: {bg}; color: {fg}; border-radius: {Theme.CORNER_RADIUS};")
         self.resolution_label.setStyleSheet(f"color: {Theme.SUBTEXT0}; font-size: 12px;")
         self.toggle_btn.setStyleSheet(f"background-color: {Theme.SURFACE0}; color: {Theme.SUBTEXT0}; text-align: left; padding: 8px;")

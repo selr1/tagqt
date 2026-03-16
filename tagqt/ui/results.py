@@ -41,7 +41,13 @@ class SearchResultsDialog(QDialog):
         for res in results:
             if mode == "lyrics":
                 duration_str = self.format_duration(res.get("duration", 0))
-                type_str = "Synced" if res.get("isSynced") else "Plain"
+                synced = res.get("syncedLyrics") or ""
+                if res.get("isSynced") and "<" in synced:
+                    type_str = "Word Synced"
+                elif res.get("isSynced"):
+                    type_str = "Synced"
+                else:
+                    type_str = "Plain"
                 
                 item = QTreeWidgetItem([
                     res.get("trackName", ""),
