@@ -19,6 +19,7 @@ from tagqt.ui.workers import (
     FlacReencodeWorker, CsvImportWorker, SaveWorker, DuplicateScanWorker,
     BpmDetectWorker, UndoBatchWorker, LIBROSA_AVAILABLE
 )
+from tagqt.core.lyric import SYNCEDLYRICS_AVAILABLE
 from tagqt.core.snapshot import BatchSnapshot
 import logging
 import os
@@ -688,10 +689,18 @@ class MainWindow(QMainWindow):
         enabled_providers = self.settings.get_lyrics_providers()
 
         for key, label in _provider_labels.items():
-            action = providers_menu.addAction(label)
-            action.setCheckable(True)
-            action.setChecked(key in enabled_providers)
-            action.toggled.connect(lambda checked, k=key: self._on_provider_toggled(k, checked))
+            needs_syncedlyrics = key in ("syncedlyrics_word", "syncedlyrics_line")
+            if needs_syncedlyrics and not SYNCEDLYRICS_AVAILABLE:
+                action = providers_menu.addAction(f"{label} (not installed)")
+                action.setCheckable(True)
+                action.setChecked(False)
+                action.setEnabled(False)
+                action.setToolTip("Install syncedlyrics: pip install syncedlyrics")
+            else:
+                action = providers_menu.addAction(label)
+                action.setCheckable(True)
+                action.setChecked(key in enabled_providers)
+                action.toggled.connect(lambda checked, k=key: self._on_provider_toggled(k, checked))
             self._provider_actions[key] = action
         
         view_menu = menu_bar.addMenu("View")
@@ -1931,9 +1940,11 @@ class MainWindow(QMainWindow):
 
 <b>Optional Dependencies</b>
 <ul>
-<li><code>koroman</code> - Korean romanization</li>
-<li><code>ffmpeg</code> - FLAC re-encoding</li>
-<li><code>musicbrainzngs</code> - Auto-tagging</li>
+<li><code>koroman</code> &mdash; Korean romanization</li>
+<li><code>ffmpeg</code> &mdash; FLAC re-encoding (system package)</li>
+<li><code>musicbrainzngs</code> &mdash; MusicBrainz auto-tagging</li>
+<li><code>librosa</code> &mdash; BPM detection (<code>pip install librosa</code>)</li>
+<li><code>syncedlyrics</code> &mdash; Musixmatch word/line-synced lyrics (<code>pip install syncedlyrics</code>)</li>
 </ul>
 
 <b>Formats</b>: MP3, FLAC, OGG, M4A, WAV

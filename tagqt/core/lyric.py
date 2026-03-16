@@ -1,5 +1,11 @@
 import requests
 
+try:
+    import syncedlyrics
+    SYNCEDLYRICS_AVAILABLE = True
+except ImportError:
+    SYNCEDLYRICS_AVAILABLE = False
+
 
 class LyricsFetcher:
     """Searches for synced and plain lyrics from lrclib.net."""
